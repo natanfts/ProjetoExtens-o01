@@ -1,8 +1,10 @@
 import flet as ft
 
+from views.ui_components import primary_button, secondary_button, soft_card
+
 
 class LoginView:
-    """Tela de Login / Cadastro."""
+    """Tela de login e cadastro com visual alinhado ao dashboard."""
 
     def __init__(self, app):
         self.app = app
@@ -12,96 +14,188 @@ class LoginView:
     def build(self):
         t = self.app.theme_mgr.get_theme()
 
-        self._username = ft.TextField(
-            label="Usuário", width=300, height=50,
-            bgcolor=t["entry_bg"], border_color=t["entry_border"],
-            color=t["text"], label_style=ft.TextStyle(color=t["text_sec"]),
+        self._username = self._build_field(t, "Usuário", ft.Icons.PERSON_OUTLINE_ROUNDED)
+        self._password = self._build_field(
+            t,
+            "Senha",
+            ft.Icons.LOCK_OUTLINE_ROUNDED,
+            password=True,
+            can_reveal_password=True,
         )
-        self._password = ft.TextField(
-            label="Senha", width=300, height=50, password=True, can_reveal_password=True,
-            bgcolor=t["entry_bg"], border_color=t["entry_border"],
-            color=t["text"], label_style=ft.TextStyle(color=t["text_sec"]),
-        )
-        self._display_name = ft.TextField(
-            label="Nome de exibição", width=300, height=50,
-            bgcolor=t["entry_bg"], border_color=t["entry_border"],
-            color=t["text"], label_style=ft.TextStyle(color=t["text_sec"]),
+        self._display_name = self._build_field(
+            t,
+            "Nome de exibição",
+            ft.Icons.BADGE_OUTLINED,
             visible=False,
         )
 
-        self._title = ft.Text("🔑 Entrar", size=24,
-                              weight=ft.FontWeight.BOLD, color=t["primary"])
+        self._title = ft.Text("Entrar", size=28, weight=ft.FontWeight.BOLD, color=t["text"])
         self._subtitle = ft.Text(
-            "Acesse sua conta para sincronizar dados",
-            size=12, color=t["text_sec"],
+            "Acesse sua conta para salvar progresso, streak e conquistas.",
+            size=13,
+            color=t["text_sec"],
+            text_align=ft.TextAlign.CENTER,
         )
 
-        self._action_btn = ft.ElevatedButton(
-            content=ft.Text("Entrar"), width=300, height=45,
-            bgcolor=t["button"], color="#FFFFFF",
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)),
-            on_click=self._do_action,
+        self._action_btn = primary_button(
+            t,
+            "Entrar",
+            self._do_action,
+            icon=ft.Icons.LOGIN_ROUNDED,
+            width=320,
         )
-
         self._toggle_btn = ft.TextButton(
-            content=ft.Text("Não tem conta? Cadastre-se"), width=300,
+            "Não tem conta? Cadastre-se",
             on_click=self._toggle_mode,
             style=ft.ButtonStyle(color=t["text_sec"]),
         )
-
-        self._skip_btn = ft.TextButton(
-            content=ft.Text("Continuar como convidado →"), width=300,
-            on_click=lambda _: self.app.show_view("pomodoro"),
-            style=ft.ButtonStyle(color=t["text_sec"]),
+        self._skip_btn = secondary_button(
+            t,
+            "Continuar como convidado",
+            lambda _: self.app.show_view("pomodoro"),
+            icon=ft.Icons.ARROW_FORWARD_ROUNDED,
+            width=320,
         )
 
-        card = ft.Container(
-            width=380,
-            padding=30,
-            border_radius=16,
-            bgcolor=t["card"],
-            content=ft.Column(
-                controls=[
+        left_panel = soft_card(
+            t,
+            ft.Column(
+                [
+                    ft.Container(
+                        width=58,
+                        height=58,
+                        border_radius=20,
+                        bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                        alignment=ft.Alignment.CENTER,
+                        content=ft.Text("🎓", size=28),
+                    ),
+                    ft.Text(
+                        "Estude com ritmo, clareza e sensação de produto premium.",
+                        size=26,
+                        weight=ft.FontWeight.BOLD,
+                        color=t["text"],
+                    ),
+                    ft.Text(
+                        "Login libera sincronização de dados, metas, histórico, gamificação e personalização.",
+                        size=13,
+                        color=t["text_sec"],
+                    ),
+                    ft.Column(
+                        [
+                            self._feature_line(t, "⭐ XP, níveis e evolução visível"),
+                            self._feature_line(t, "🔥 streak diário para reforçar consistência"),
+                            self._feature_line(t, "🏆 conquistas com feedback imediato"),
+                            self._feature_line(t, "🎯 metas e tarefas em um fluxo único"),
+                        ],
+                        spacing=10,
+                    ),
+                ],
+                spacing=18,
+            ),
+            radius=30,
+            padding=26,
+            expand=True,
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment.TOP_LEFT,
+                end=ft.Alignment.BOTTOM_RIGHT,
+                colors=[t["surface_alt"], t["card"], t["secondary"]],
+            ),
+            border=ft.border.all(1, "#12FFFFFF"),
+        )
+
+        form_panel = soft_card(
+            t,
+            ft.Column(
+                [
                     self._title,
                     self._subtitle,
-                    ft.Container(height=15),
+                    ft.Container(height=4),
                     self._username,
                     self._password,
                     self._display_name,
-                    ft.Container(height=10),
+                    ft.Container(height=6),
                     self._action_btn,
                     self._toggle_btn,
+                    ft.Container(height=6),
                     self._skip_btn,
                 ],
+                spacing=10,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                spacing=8,
             ),
+            radius=30,
+            padding=26,
+            width=380,
+            bgcolor=t.get("surface_soft", "#08FFFFFF"),
+            border=ft.border.all(1, "#12FFFFFF"),
         )
 
         return ft.Container(
             expand=True,
             bgcolor=t["bg"],
-            alignment=ft.Alignment.CENTER,
-            content=card,
+            padding=ft.padding.only(left=18, top=18, right=18, bottom=20),
+            content=ft.ResponsiveRow(
+                controls=[
+                    ft.Container(content=left_panel, col={"xs": 12, "md": 7}),
+                    ft.Container(content=form_panel, col={"xs": 12, "md": 5}),
+                ],
+                columns=12,
+                spacing=16,
+                run_spacing=16,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
         )
 
     def on_show(self):
         self._mode = "login"
 
+    def _build_field(self, t, label, icon, **kwargs):
+        return ft.TextField(
+            label=label,
+            width=320,
+            height=56,
+            prefix_icon=icon,
+            border_radius=18,
+            bgcolor=t.get("surface_soft", "#08FFFFFF"),
+            border_color="#12FFFFFF",
+            focused_border_color=t["primary"],
+            color=t["text"],
+            label_style=ft.TextStyle(color=t["text_sec"]),
+            text_style=ft.TextStyle(size=14, color=t["text"]),
+            **kwargs,
+        )
+
+    def _feature_line(self, t, text):
+        return ft.Row(
+            [
+                ft.Container(
+                    width=22,
+                    height=22,
+                    border_radius=999,
+                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Icon(ft.Icons.CHECK_ROUNDED, size=14, color=t["primary"]),
+                ),
+                ft.Text(text, size=12, color=t["text_sec"]),
+            ],
+            spacing=10,
+        )
+
     def _toggle_mode(self, e=None):
         if self._mode == "login":
             self._mode = "register"
-            self._title.value = "📝 Cadastrar"
-            self._subtitle.value = "Crie sua conta para salvar seu progresso"
-            self._action_btn.content = ft.Text("Cadastrar")
-            self._toggle_btn.content = ft.Text("Já tem conta? Faça login")
+            self._title.value = "Criar conta"
+            self._subtitle.value = "Cadastre-se para salvar seu desempenho e personalizar a experiência."
+            self._action_btn.content = "Cadastrar"
+            self._action_btn.icon = ft.Icons.PERSON_ADD_ALT_1_ROUNDED
+            self._toggle_btn.content = "Já tem conta? Faça login"
             self._display_name.visible = True
         else:
             self._mode = "login"
-            self._title.value = "🔑 Entrar"
-            self._subtitle.value = "Acesse sua conta para sincronizar dados"
-            self._action_btn.content = ft.Text("Entrar")
-            self._toggle_btn.content = ft.Text("Não tem conta? Cadastre-se")
+            self._title.value = "Entrar"
+            self._subtitle.value = "Acesse sua conta para salvar progresso, streak e conquistas."
+            self._action_btn.content = "Entrar"
+            self._action_btn.icon = ft.Icons.LOGIN_ROUNDED
+            self._toggle_btn.content = "Não tem conta? Cadastre-se"
             self._display_name.visible = False
         self.app.page.update()
 
@@ -110,30 +204,27 @@ class LoginView:
         password = self._password.value.strip() if self._password.value else ""
 
         if not username or not password:
-            self.app.show_snackbar("⚠️ Preencha todos os campos.")
+            self.app.show_snackbar("Preencha usuário e senha.")
             return
 
         if self._mode == "register" and len(password) < 4:
-            self.app.show_snackbar(
-                "⚠️ A senha deve ter pelo menos 4 caracteres.")
+            self.app.show_snackbar("A senha deve ter pelo menos 4 caracteres.")
             return
 
         if self._mode == "login":
             user = self.db.authenticate(username, password)
             if user:
                 self.app.set_user(user)
-                self.app.show_snackbar("✅ Login realizado com sucesso!")
+                self.app.show_snackbar("Login realizado com sucesso.")
                 self.app.show_view("dashboard")
             else:
-                self.app.show_snackbar(
-                    "❌ Usuário ou senha inválidos.", bgcolor="#F44336")
+                self.app.show_snackbar("Usuário ou senha inválidos.", bgcolor="#F44336")
         else:
             display = (self._display_name.value or "").strip() or username
             user = self.db.create_user(username, password, display)
             if user:
                 self.app.set_user(user)
-                self.app.show_snackbar("✅ Conta criada com sucesso!")
+                self.app.show_snackbar("Conta criada com sucesso.")
                 self.app.show_view("dashboard")
             else:
-                self.app.show_snackbar(
-                    "❌ Usuário já existe.", bgcolor="#F44336")
+                self.app.show_snackbar("Usuário já existe.", bgcolor="#F44336")

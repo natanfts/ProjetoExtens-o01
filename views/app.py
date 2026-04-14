@@ -1,12 +1,15 @@
-import flet as ft
 import threading
-from database import DatabaseManager
-from themes import ThemeManager, THEMES
+
+import flet as ft
+
 from content_updater import ContentUpdater
+from database import DatabaseManager
+from themes import ThemeManager
+from views.ui_components import soft_card, with_alpha
 
 
 class SwitchFocusApp:
-    """Aplicativo principal Switch Focus — Flet (mobile-first)."""
+    """Aplicativo principal Switch Focus."""
 
     NAV_VIEWS = ["dashboard", "pomodoro", "tasks", "study", "more"]
 
@@ -19,7 +22,6 @@ class SwitchFocusApp:
         self._views: dict = {}
         self._current_view_name = None
 
-    # ── inicialização ────────────────────────────────────────
     def initialize(self):
         t = self.theme_mgr.get_theme()
 
@@ -29,37 +31,32 @@ class SwitchFocusApp:
         self.page.padding = 0
         self.page.window.width = 420
         self.page.window.height = 800
+        self.page.window.min_width = 380
+        self.page.window.min_height = 720
 
-        # Área de conteúdo
         self._content = ft.Container(expand=True, bgcolor=t["bg"])
 
-        # App bar
         self._app_bar = ft.AppBar(
-            title=ft.Text("🔀 Switch Focus", size=18,
-                          weight=ft.FontWeight.BOLD, color=t["text"]),
+            title=ft.Text("Switch Focus", size=20, weight=ft.FontWeight.BOLD, color=t["text"]),
             bgcolor=t["sidebar"],
             center_title=False,
             actions=[],
+            toolbar_height=66,
+            elevation=0,
         )
         self.page.appbar = self._app_bar
 
-        # Barra de navegação inferior
         self._nav_bar = ft.NavigationBar(
             selected_index=0,
             bgcolor=t["sidebar"],
-            indicator_color=t["primary"],
+            indicator_color=with_alpha(t["primary"], "33"),
             label_behavior=ft.NavigationBarLabelBehavior.ALWAYS_SHOW,
             destinations=[
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.HOME_ROUNDED, label="Home"),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.TIMER_ROUNDED, label="Pomodoro"),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.CHECKLIST_ROUNDED, label="Tarefas"),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.SCHOOL_ROUNDED, label="Estudar"),
-                ft.NavigationBarDestination(
-                    icon=ft.Icons.MENU_ROUNDED, label="Mais"),
+                ft.NavigationBarDestination(icon=ft.Icons.HOME_ROUNDED, label="Home"),
+                ft.NavigationBarDestination(icon=ft.Icons.TIMER_ROUNDED, label="Pomodoro"),
+                ft.NavigationBarDestination(icon=ft.Icons.CHECKLIST_ROUNDED, label="Tarefas"),
+                ft.NavigationBarDestination(icon=ft.Icons.SCHOOL_ROUNDED, label="Estudar"),
+                ft.NavigationBarDestination(icon=ft.Icons.MENU_ROUNDED, label="Mais"),
             ],
             on_change=self._on_nav_change,
         )
@@ -67,11 +64,8 @@ class SwitchFocusApp:
 
         self.page.add(self._content)
         self.show_view("dashboard")
-
-        # Atualização automática em background
         threading.Thread(target=self._auto_update_content, daemon=True).start()
 
-    # ── navegação ────────────────────────────────────────────
     def _on_nav_change(self, e):
         idx = e.control.selected_index
         if idx < len(self.NAV_VIEWS):
@@ -81,71 +75,66 @@ class SwitchFocusApp:
         self._current_view_name = name
         t = self.theme_mgr.get_theme()
 
-        # Atualizar app bar
         titles = {
-            "dashboard": f"{t['emoji']} Dashboard",
-            "pomodoro": t.get("timer_title", "🍅 Pomodoro"),
-            "tasks": "📋 Tarefas",
-            "study": t.get("study_title", "📚 Estudar"),
-            "flashcards": "🃏 Flashcards",
-            "shorts": "📱 Shorts",
-            "history": "📊 Histórico",
-            "settings": "⚙️ Configurações",
-            "theory": "📖 Teorias ENEM",
-            "enem_editais": "📋 Editais do ENEM",
-            "login": "🔑 Login",
-            "more": "📋 Menu",
+            "dashboard": "Dashboard",
+            "pomodoro": t.get("timer_title", "Pomodoro"),
+            "tasks": "Tarefas",
+            "study": t.get("study_title", "Estudar"),
+            "flashcards": "Flashcards",
+            "shorts": "Shorts",
+            "history": "Historico",
+            "settings": "Configuracoes",
+            "theory": "Teorias ENEM",
+            "enem_editais": "Editais do ENEM",
+            "login": "Entrar",
+            "more": "Mais",
         }
         self._app_bar.title = ft.Text(
-            titles.get(name, name), size=18,
-            weight=ft.FontWeight.BOLD, color=t["text"],
+            titles.get(name, name),
+            size=18,
+            weight=ft.FontWeight.BOLD,
+            color=t["text"],
         )
         self._app_bar.bgcolor = t["sidebar"]
 
-        # Botão voltar para sub-páginas
-        sub_pages = {"flashcards", "shorts",
-                     "history", "settings", "login", "theory",
-                     "enem_editais"}
+        sub_pages = {"flashcards", "shorts", "history", "settings", "login", "theory", "enem_editais"}
         if name in sub_pages:
             self._app_bar.leading = ft.IconButton(
-                ft.Icons.ARROW_BACK, icon_color=t["text"],
+                ft.Icons.ARROW_BACK_ROUNDED,
+                icon_color=t["text"],
                 on_click=lambda _: self.show_view("more"),
             )
         else:
             self._app_bar.leading = None
 
-        # XP na app bar
         self._app_bar.actions = []
         uid = self.get_user_id()
         if uid:
             xp_info = self.db.get_xp_info(uid)
             streak = self.db.get_streak(uid)
-            lp = t.get("level_prefix", "Nv.")
+            lp = t.get("level_prefix", "Nivel")
             self._app_bar.actions.append(
                 ft.Container(
                     content=ft.Text(
-                        f"⭐{lp}{xp_info['level']} 🔥{streak['streak']}d",
-                        size=12, color=t["accent"], weight=ft.FontWeight.BOLD,
+                        f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
+                        size=12,
+                        color=t["text"],
+                        weight=ft.FontWeight.BOLD,
                     ),
-                    margin=ft.margin.only(right=15),
+                    margin=ft.margin.only(right=16),
+                    padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                    border_radius=999,
                 )
             )
 
-        # Atualizar índice do nav bar
         if name in self.NAV_VIEWS:
             self._nav_bar.selected_index = self.NAV_VIEWS.index(name)
 
-        # Criar ou pegar view cacheada (pomodoro é sempre cacheado)
         if name == "more":
             content = self._build_more_menu()
         else:
-            if name == "pomodoro":
-                # Cache do pomodoro para manter o timer
-                if name not in self._views:
-                    self._views[name] = self._create_view(name)
-                view = self._views[name]
-            elif name in ("study", "theory", "enem_editais"):
-                # Cache para manter estado do quiz, teoria e editais
+            if name in {"pomodoro", "study", "theory", "enem_editais"}:
                 if name not in self._views:
                     self._views[name] = self._create_view(name)
                 view = self._views[name]
@@ -167,100 +156,128 @@ class SwitchFocusApp:
         if name == "dashboard":
             from views.dashboard_view import DashboardView
             return DashboardView(self)
-        elif name == "pomodoro":
+        if name == "pomodoro":
             from views.pomodoro_view import PomodoroView
             return PomodoroView(self)
-        elif name == "tasks":
+        if name == "tasks":
             from views.tasks_view import TasksView
             return TasksView(self)
-        elif name == "study":
+        if name == "study":
             from views.study_view import StudyView
             return StudyView(self)
-        elif name == "flashcards":
+        if name == "flashcards":
             from views.flashcards_view import FlashcardsView
             return FlashcardsView(self)
-        elif name == "shorts":
+        if name == "shorts":
             from views.shorts_view import ShortsView
             return ShortsView(self)
-        elif name == "history":
+        if name == "history":
             from views.history_view import HistoryView
             return HistoryView(self)
-        elif name == "settings":
+        if name == "settings":
             from views.settings_view import SettingsView
             return SettingsView(self)
-        elif name == "theory":
+        if name == "theory":
             from views.theory_view import TheoryView
             return TheoryView(self)
-        elif name == "enem_editais":
+        if name == "enem_editais":
             from views.enem_editais_view import EnemEditaisView
             return EnemEditaisView(self)
-        elif name == "login":
+        if name == "login":
             from views.login_view import LoginView
             return LoginView(self)
         return None
 
-    # ── menu "Mais" ──────────────────────────────────────────
     def _build_more_menu(self):
         t = self.theme_mgr.get_theme()
 
         items = [
-            (ft.Icons.MENU_BOOK, "📖 Teorias ENEM", "theory"),
-            (ft.Icons.DESCRIPTION, "📋 Editais do ENEM", "enem_editais"),
-            (ft.Icons.STYLE, "🃏 Flashcards", "flashcards"),
-            (ft.Icons.VIDEO_LIBRARY, "📱 Shorts / Vídeos", "shorts"),
-            (ft.Icons.BAR_CHART, "📊 Histórico", "history"),
-            (ft.Icons.SETTINGS, "⚙️ Configurações", "settings"),
+            (ft.Icons.MENU_BOOK_ROUNDED, "Teorias ENEM", "Conteudo teorico e revisao", "theory"),
+            (ft.Icons.DESCRIPTION_ROUNDED, "Editais do ENEM", "Consulta rapida de informacoes", "enem_editais"),
+            (ft.Icons.STYLE_ROUNDED, "Flashcards", "Memorizacao com repeticao", "flashcards"),
+            (ft.Icons.VIDEO_LIBRARY_ROUNDED, "Shorts / Videos", "Consumo rapido de conteudo", "shorts"),
+            (ft.Icons.BAR_CHART_ROUNDED, "Historico", "Evolucao e desempenho", "history"),
+            (ft.Icons.SETTINGS_ROUNDED, "Configuracoes", "Preferencias do aplicativo", "settings"),
         ]
 
         if self.current_user:
-            user_text = f"👤 {self.current_user.get('display_name', 'Usuário')}"
-            items.append((ft.Icons.LOGOUT, "🚪 Sair", "_logout"))
+            user_text = self.current_user.get("display_name", "Usuario")
+            user_subtitle = "Conta conectada"
+            items.append((ft.Icons.LOGOUT_ROUNDED, "Sair", "Encerrar sessao atual", "_logout"))
         else:
-            user_text = "👤 Convidado"
-            items.append((ft.Icons.LOGIN, "🔑 Entrar / Cadastrar", "login"))
+            user_text = "Convidado"
+            user_subtitle = "Explorando sem conta"
+            items.append((ft.Icons.LOGIN_ROUNDED, "Entrar / Cadastrar", "Salvar progresso e desbloquear recursos", "login"))
 
         tiles = []
-        for icon, label, target in items:
+        for icon, label, subtitle, target in items:
             tiles.append(
-                ft.Container(
-                    content=ft.ListTile(
-                        leading=ft.Icon(icon, color=t["primary"]),
-                        title=ft.Text(label, color=t["text"], size=15),
-                        trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT,
-                                         color=t["text_sec"]),
+                soft_card(
+                    t,
+                    ft.ListTile(
+                        leading=ft.Container(
+                            width=42,
+                            height=42,
+                            border_radius=14,
+                            bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                            alignment=ft.Alignment.CENTER,
+                            content=ft.Icon(icon, color=t["primary"]),
+                        ),
+                        title=ft.Text(label, color=t["text"], size=15, weight=ft.FontWeight.W_600),
+                        subtitle=ft.Text(subtitle, color=t["text_sec"], size=11),
+                        trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=t["text_sec"]),
                         on_click=lambda _, tgt=target: self._on_more_item(tgt),
                     ),
-                    bgcolor=t["card"],
-                    border_radius=12,
+                    bgcolor=t.get("surface_soft", "#08FFFFFF"),
+                    border=ft.border.all(1, "#12FFFFFF"),
+                    radius=22,
+                    padding=8,
                 )
             )
 
         return ft.Container(
             bgcolor=t["bg"],
-            padding=20,
+            padding=18,
             expand=True,
             content=ft.Column(
                 controls=[
-                    ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.Icons.ACCOUNT_CIRCLE,
-                                    size=48, color=t["primary"]),
-                            ft.Column([
-                                ft.Text(
-                                    user_text, size=18, weight=ft.FontWeight.BOLD, color=t["text"]),
-                                ft.Text(
-                                    t.get(
-                                        "welcome", "Bem-vindo ao Switch Focus!"),
-                                    size=12, color=t["text_sec"],
+                    soft_card(
+                        t,
+                        ft.Row(
+                            [
+                                ft.Container(
+                                    width=56,
+                                    height=56,
+                                    border_radius=20,
+                                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                                    alignment=ft.Alignment.CENTER,
+                                    content=ft.Icon(ft.Icons.ACCOUNT_CIRCLE_ROUNDED, size=34, color=t["primary"]),
                                 ),
-                            ], spacing=2),
-                        ], spacing=15),
-                        padding=ft.padding.only(bottom=15),
+                                ft.Column(
+                                    [
+                                        ft.Text(user_text, size=18, weight=ft.FontWeight.BOLD, color=t["text"]),
+                                        ft.Text(user_subtitle, size=12, color=t["text_sec"]),
+                                        ft.Text(
+                                            t.get("welcome", "Bem-vindo ao Switch Focus!"),
+                                            size=12,
+                                            color=t["text_sec"],
+                                        ),
+                                    ],
+                                    spacing=2,
+                                    expand=True,
+                                ),
+                            ],
+                            spacing=15,
+                        ),
+                        padding=18,
+                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
+                        border=ft.border.all(1, "#12FFFFFF"),
+                        radius=24,
                     ),
-                    ft.Divider(color=t["card"], height=1),
+                    ft.Text("Mais recursos", size=18, weight=ft.FontWeight.BOLD, color=t["text"]),
                     *tiles,
                 ],
-                spacing=8,
+                spacing=12,
             ),
         )
 
@@ -270,7 +287,6 @@ class SwitchFocusApp:
         else:
             self.show_view(target)
 
-    # ── user / auth ──────────────────────────────────────────
     def get_user_id(self):
         return self.current_user["id"] if self.current_user else None
 
@@ -288,41 +304,42 @@ class SwitchFocusApp:
         self.show_view("dashboard")
 
     def refresh_xp_sidebar(self):
-        """Atualiza XP na appbar."""
         if self._current_view_name:
             uid = self.get_user_id()
             if uid:
                 t = self.theme_mgr.get_theme()
                 xp_info = self.db.get_xp_info(uid)
                 streak = self.db.get_streak(uid)
-                lp = t.get("level_prefix", "Nv.")
+                lp = t.get("level_prefix", "Nivel")
                 self._app_bar.actions = [
                     ft.Container(
                         content=ft.Text(
-                            f"⭐{lp}{xp_info['level']} 🔥{streak['streak']}d",
-                            size=12, color=t["accent"], weight=ft.FontWeight.BOLD,
+                            f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
+                            size=12,
+                            color=t["text"],
+                            weight=ft.FontWeight.BOLD,
                         ),
-                        margin=ft.margin.only(right=15),
+                        margin=ft.margin.only(right=16),
+                        padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                        bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                        border_radius=999,
                     )
                 ]
 
-    # ── tema ─────────────────────────────────────────────────
     def _apply_theme(self):
         t = self.theme_mgr.get_theme()
         self.page.bgcolor = t["bg"]
         self._content.bgcolor = t["bg"]
         self._nav_bar.bgcolor = t["sidebar"]
-        self._nav_bar.indicator_color = t["primary"]
+        self._nav_bar.indicator_color = with_alpha(t["primary"], "33")
         self._app_bar.bgcolor = t["sidebar"]
 
     def refresh_theme(self):
         self._apply_theme()
-        # Limpar cache de views para reconstruir com novo tema
         self._views = {}
         if self._current_view_name:
             self.show_view(self._current_view_name)
 
-    # ── helpers UI ───────────────────────────────────────────
     def show_snackbar(self, message, bgcolor=None):
         t = self.theme_mgr.get_theme()
         self.page.snack_bar = ft.SnackBar(
@@ -370,7 +387,6 @@ class SwitchFocusApp:
         dlg.open = True
         self.page.update()
 
-    # ── auto update ──────────────────────────────────────────
     def _auto_update_content(self):
         try:
             self.updater.start_update()

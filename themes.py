@@ -331,7 +331,76 @@ THEMES = {
     },
 }
 
-DEFAULT_THEME = "Naruto"
+CALM_W3_PALETTE = {
+    "primary": "#04AA6D",
+    "secondary": "#2B3A46",
+    "accent": "#D9EEE1",
+    "bg": "#1D2A35",
+    "sidebar": "#18232E",
+    "card": "#22303C",
+    "text": "#E7E9EB",
+    "text_sec": "#B7C4CD",
+    "success": "#04AA6D",
+    "danger": "#C97777",
+    "warning": "#D4B56A",
+    "button": "#059862",
+    "button_hover": "#04AA6D",
+    "entry_bg": "#263744",
+    "entry_border": "#3C5364",
+    "progress": "#04AA6D",
+    "surface_alt": "#2B3E4C",
+    "surface_soft": "#08FFFFFF",
+    "shadow_dark": "#38091118",
+    "shadow_light": "#0DFFFFFF",
+}
+
+THEME_COLOR_KEYS = [
+    "primary",
+    "secondary",
+    "accent",
+    "bg",
+    "sidebar",
+    "card",
+    "text",
+    "text_sec",
+    "success",
+    "danger",
+    "warning",
+    "button",
+    "button_hover",
+    "entry_bg",
+    "entry_border",
+    "progress",
+    "surface_alt",
+    "surface_soft",
+    "shadow_dark",
+    "shadow_light",
+]
+
+THEMES["W3 Calm"] = {
+    **CALM_W3_PALETTE,
+    "emoji": "🟢",
+    "desc": "Tema suave inspirado no tom visual do W3Schools, com contraste confortável.",
+    "greeting": "{saudacao}, {nome}!",
+    "welcome": "Bem-vindo ao seu espaço de estudos.",
+    "focus_label": "Sessão de foco",
+    "short_break_label": "Pausa curta",
+    "long_break_label": "Pausa longa",
+    "timer_title": "Pomodoro",
+    "study_title": "Estudar",
+    "celebration": "Excelente progresso hoje. Continue nesse ritmo.",
+    "new_achievement": "Nova conquista: {emoji} {title}",
+    "level_prefix": "Nível",
+    "streak_msg": "{dias} dias de constância",
+    "xp_name": "XP",
+}
+
+for theme_name, theme in THEMES.items():
+    if theme_name != "W3 Calm":
+        for key in THEME_COLOR_KEYS:
+            theme[key] = CALM_W3_PALETTE[key]
+
+DEFAULT_THEME = "W3 Calm"
 
 
 class ThemeManager:

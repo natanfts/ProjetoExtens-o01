@@ -1,41 +1,62 @@
-"""Script para corrigir incompatibilidades com Flet 0.84."""
+"""Script simples para ajustar incompatibilidades comuns com Flet 0.84.
+
+Mantido propositalmente pequeno para servir como utilitário de manutenção.
+"""
+
+from pathlib import Path
 import re
-import glob
 
-files = glob.glob('views/*.py') + ['main.py']
-total = 0
 
-for fpath in files:
-    with open(fpath, 'r', encoding='utf-8') as f:
-        content = f.read()
-    original = content
+ROOT = Path(__file__).resolve().parent
+FILES = list((ROOT / "views").glob("*.py")) + [ROOT / "main.py"]
 
-    # 1. ft.alignment.center -> ft.Alignment.CENTER
-    content = content.replace('ft.alignment.center', 'ft.Alignment.CENTER')
-    # 2. ft.alignment.top_center -> ft.Alignment.TOP_CENTER
-    content = content.replace(
-        'ft.alignment.top_center', 'ft.Alignment.TOP_CENTER')
 
-    # 3. ft.ElevatedButton(text="X", ... ) -> ft.Button(content=ft.Text("X"), ...)
-    content = re.sub(
-        r'ft\.ElevatedButton\(text=(".*?")',
-        r'ft.Button(content=ft.Text(\1)',
-        content,
-    )
+def apply_fixes(content: str) -> str:
+    fixes = [
+        ("ft.alignment.center", "ft.Alignment.CENTER"),
+        ("ft.alignment.top_center", "ft.Alignment.TOP_CENTER"),
+        ("ft.alignment.top_left", "ft.Alignment.TOP_LEFT"),
+        ("ft.alignment.top_right", "ft.Alignment.TOP_RIGHT"),
+        ("ft.alignment.bottom_left", "ft.Alignment.BOTTOM_LEFT"),
+        ("ft.alignment.bottom_right", "ft.Alignment.BOTTOM_RIGHT"),
+    ]
 
-    # 4. ft.TextButton(text="X", ...) -> ft.TextButton(content=ft.Text("X"), ...)
-    content = re.sub(
-        r'ft\.TextButton\(text=(".*?")',
-        r'ft.TextButton(content=ft.Text(\1))',
-        content,
-    )
+    for old, new in fixes:
+        content = content.replace(old, new)
 
-    if content != original:
-        with open(fpath, 'w', encoding='utf-8') as f:
-            f.write(content)
-        total += 1
-        print(f'Fixed: {fpath}')
-    else:
-        print(f'OK: {fpath}')
+    # Ajusta botões com `text=` para `content=`, compatível com Flet 0.84.
+    button_patterns = [
+        (r"ft\.ElevatedButton\(", "ft.ElevatedButton("),
+        (r"ft\.TextButton\(", "ft.TextButton("),
+        (r"ft\.OutlinedButton\(", "ft.OutlinedButton("),
+    ]
 
-print(f'\nTotal files modified: {total}')
+    for pattern, replacement in button_patterns:
+        content = re.sub(
+            pattern + r"([^)]*?)\btext=",
+            replacement + r"\1content=",
+            content,
+        )
+
+    return content
+
+
+def main():
+    total = 0
+
+    for path in FILES:
+        content = path.read_text(encoding="utf-8")
+        updated = apply_fixes(content)
+
+        if updated != content:
+            path.write_text(updated, encoding="utf-8")
+            total += 1
+            print(f"Fixed: {path.name}")
+        else:
+            print(f"OK: {path.name}")
+
+    print(f"\nTotal files modified: {total}")
+
+
+if __name__ == "__main__":
+    main()

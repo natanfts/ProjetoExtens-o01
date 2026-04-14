@@ -1,9 +1,20 @@
 import flet as ft
 from datetime import datetime, timedelta
 
+from views.ui_components import (
+    metric_card,
+    primary_button,
+    progress_track,
+    section_title,
+    secondary_button,
+    soft_card,
+    stat_pill,
+    with_alpha,
+)
+
 
 class DashboardView:
-    """Dashboard — resumo do dia, XP, streak, metas e conquistas."""
+    """Dashboard principal com foco em progresso, metas e ações rápidas."""
 
     def __init__(self, app):
         self.app = app
@@ -19,63 +30,226 @@ class DashboardView:
         if not uid:
             return self._build_guest(t)
 
-        # Atualizar streak
         self.db.update_streak(uid)
 
-        # ── Saudação ─────────────────────────────────────────
         hour = datetime.now().hour
-        greeting = "Bom dia" if hour < 12 else (
-            "Boa tarde" if hour < 18 else "Boa noite")
+        greeting = "Bom dia" if hour < 12 else ("Boa tarde" if hour < 18 else "Boa noite")
         name = self.app.current_user.get("display_name", "Estudante")
-        greeting_template = t.get("greeting", "👋 {saudacao}, {nome}!")
-        greeting_text = greeting_template.format(saudacao=greeting, nome=name)
 
-        # ── XP / Nível ───────────────────────────────────────
         xp_info = self.db.get_xp_info(uid)
         streak_info = self.db.get_streak(uid)
-        level_prefix = t.get("level_prefix", "Nível")
-        xp_name = t.get("xp_name", "XP")
-        streak_msg = t.get("streak_msg", "🔥 {dias} dias seguidos!").format(
-            dias=streak_info["streak"])
+        goals_summary = self.db.get_daily_goals_summary(uid)
+        today_stats = self.db.get_today_stats(uid)
+        sessions = self.db.get_sessions(uid, limit=200)
+        new_achs = self.db.check_and_grant_achievements(uid)
+        earned = self.db.get_user_achievements(uid)
+        all_achs = self.db.get_all_achievements()
 
-        xp_card = ft.Container(
-            bgcolor=t["card"], border_radius=14, padding=20,
-            content=ft.Column([
-                ft.Row([
-                    ft.Text(f"⭐ {level_prefix} {xp_info['level']}",
-                            size=20, weight=ft.FontWeight.BOLD, color=t["accent"]),
-                    ft.Text(streak_msg, size=14, weight=ft.FontWeight.BOLD,
-                            color=t["danger"] if streak_info["streak"] >= 7 else t["warning"]),
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                ft.ProgressBar(
-                    value=xp_info["progress"], height=12,
-                    color=t["accent"], bgcolor=t["secondary"],
-                    border_radius=6,
+        content = ft.Column(
+            controls=[
+                self._build_hero(t, greeting, name, xp_info, streak_info, today_stats),
+                section_title(
+                    t,
+                    "Visão do dia",
+                    "Métricas rápidas para decidir sua próxima ação.",
                 ),
-                ft.Text(
-                    f"{xp_info['xp']} / {xp_info['xp_next_level']} {xp_name}  •  Recorde: {streak_info['longest']} dias",
-                    size=11, color=t["text_sec"],
+                self._build_metrics(t, today_stats, streak_info),
+                section_title(
+                    t,
+                    "Metas de hoje",
+                    "Progresso visual e recompensa imediata ao concluir.",
+                    action=ft.TextButton(
+                        "Abrir tarefas",
+                        icon=ft.Icons.ARROW_OUTWARD_ROUNDED,
+                        on_click=lambda _: self.app.show_view("tasks"),
+                        style=ft.ButtonStyle(color=t["primary"]),
+                    ),
                 ),
-            ], spacing=8),
+                self._build_goals(t, goals_summary, today_stats),
+                *self._build_new_achievements(t, new_achs),
+                section_title(
+                    t,
+                    f"Conquistas ({len(earned)}/{len(all_achs)})",
+                    "Gamificação leve para reforçar consistência.",
+                ),
+                self._build_achievements(t, earned, all_achs),
+                section_title(
+                    t,
+                    "Ritmo semanal",
+                    "Atividade dos últimos 7 dias para leitura rápida de constância.",
+                ),
+                self._build_week_activity(t, sessions),
+                section_title(
+                    t,
+                    "Ações rápidas",
+                    "Atalhos pensados para uso frequente.",
+                ),
+                self._build_actions(t),
+                ft.Container(height=6),
+            ],
+            spacing=16,
+            scroll=ft.ScrollMode.AUTO,
         )
 
-        # ── Metas do Dia ─────────────────────────────────────
-        goals_summary = self.db.get_daily_goals_summary(uid)
-        goals = goals_summary["goals"]
-        today_stats = self.db.get_today_stats(uid)
+        return ft.Container(
+            expand=True,
+            bgcolor=t["bg"],
+            padding=ft.padding.only(left=18, top=14, right=18, bottom=20),
+            content=content,
+        )
 
+    def _build_hero(self, t, greeting, name, xp_info, streak_info, today_stats):
+        level_prefix = t.get("level_prefix", "Nível")
+        xp_name = t.get("xp_name", "XP")
+
+        return soft_card(
+            t,
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        f"{greeting}, {name}",
+                                        size=24,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=t["text"],
+                                    ),
+                                    ft.Text(
+                                        "Seu painel de foco, metas e evolução em um só lugar.",
+                                        size=13,
+                                        color="#B3FFFFFF",
+                                    ),
+                                ],
+                                spacing=4,
+                                expand=True,
+                            ),
+                            ft.Container(
+                                width=52,
+                                height=52,
+                                border_radius=18,
+                                bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                                alignment=ft.Alignment.CENTER,
+                                content=ft.Text("🎯", size=26),
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.START,
+                    ),
+                    ft.Row(
+                        [
+                            stat_pill(
+                                t,
+                                level_prefix,
+                                f"{xp_info['level']}",
+                                tone=t.get("surface_soft", "#12FFFFFF"),
+                            ),
+                            stat_pill(
+                                t,
+                                "Streak",
+                                f"{streak_info['streak']} dias",
+                                tone="#22CDE8D8",
+                            ),
+                            stat_pill(
+                                t,
+                                "XP hoje",
+                                f"{today_stats['xp_today']}",
+                                tone=t.get("surface_soft", "#12FFFFFF"),
+                            ),
+                        ],
+                        wrap=True,
+                        spacing=8,
+                        run_spacing=8,
+                    ),
+                    ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.Text(
+                                        f"{xp_info['xp']} / {xp_info['xp_next_level']} {xp_name}",
+                                        size=13,
+                                        weight=ft.FontWeight.W_600,
+                                        color=t["text"],
+                                    ),
+                                    ft.Text(
+                                        f"Recorde: {streak_info['longest']} dias",
+                                        size=11,
+                                        color="#AAFFFFFF",
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                            ),
+                            progress_track(
+                                t,
+                                xp_info["progress"],
+                                color=t["accent"],
+                                bgcolor="#14FFFFFF",
+                                height=12,
+                            ),
+                        ],
+                        spacing=8,
+                    ),
+                    ft.Row(
+                        [
+                            primary_button(
+                                t,
+                                "Iniciar foco",
+                                lambda _: self.app.show_view("pomodoro"),
+                                icon=ft.Icons.PLAY_ARROW_ROUNDED,
+                                expand=True,
+                            ),
+                            secondary_button(
+                                t,
+                                "Ver estudo",
+                                lambda _: self.app.show_view("study"),
+                                icon=ft.Icons.SCHOOL_ROUNDED,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                ],
+                spacing=16,
+            ),
+            radius=30,
+            padding=24,
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment.TOP_LEFT,
+                end=ft.Alignment.BOTTOM_RIGHT,
+                colors=[t["surface_alt"], t["card"], t["secondary"]],
+            ),
+            border=ft.border.all(1, "#12FFFFFF"),
+        )
+
+    def _build_metrics(self, t, today_stats, streak_info):
+        cards = [
+            metric_card(t, "🍅", "Pomodoros", str(today_stats["pomodoros"]), "Sessões completas"),
+            metric_card(t, "⏱", "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
+            metric_card(t, "📝", "Questões", str(today_stats["questions"]), "Treino ativo"),
+            metric_card(t, "🔥", "Melhor streak", str(streak_info["longest"]), "Consistência"),
+        ]
+        return ft.ResponsiveRow(
+            controls=[
+                ft.Container(content=card, col={"xs": 6, "sm": 6, "md": 3}) for card in cards
+            ],
+            spacing=10,
+            run_spacing=10,
+        )
+
+    def _build_goals(self, t, goals_summary, today_stats):
+        goals = goals_summary["goals"]
         goal_configs = {
             "pomodoro": ("🍅", "Pomodoros", today_stats["pomodoros"]),
-            "xp":       ("⚡", "XP Ganho", today_stats["xp_today"]),
-            "quiz":     ("📝", "Questões", today_stats["questions"]),
+            "xp": ("⚡", "XP ganho", today_stats["xp_today"]),
+            "quiz": ("📝", "Questões", today_stats["questions"]),
         }
 
         goal_cards = []
         for goal in goals:
-            gtype = goal["goal_type"]
-            config = goal_configs.get(
-                gtype, ("📌", gtype, goal["current_value"]))
-            emoji, label, current = config
+            emoji, label, current = goal_configs.get(
+                goal["goal_type"],
+                ("📌", goal["goal_type"].title(), goal["current_value"]),
+            )
             current = max(current, goal["current_value"])
             target = goal["target_value"]
             done = current >= target
@@ -83,238 +257,354 @@ class DashboardView:
 
             goal_cards.append(
                 ft.Container(
-                    bgcolor=t["card"], border_radius=12, padding=15,
-                    content=ft.Column([
-                        ft.Row([
-                            ft.Text(f"{emoji} {label}", size=14, weight=ft.FontWeight.BOLD,
-                                    color=t["success"] if done else t["text"]),
-                            ft.Text(f"{'✅ ' if done else ''}{current}/{target}",
-                                    size=13, weight=ft.FontWeight.BOLD,
-                                    color=t["success"] if done else t["text_sec"]),
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.ProgressBar(
-                            value=pct, height=8, border_radius=4,
-                            color=t["success"] if done else t["accent"],
-                            bgcolor=t["secondary"],
+                    col={"xs": 12, "sm": 6, "md": 4},
+                    content=soft_card(
+                        t,
+                        ft.Column(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Text(
+                                            f"{emoji} {label}",
+                                            size=15,
+                                            weight=ft.FontWeight.W_700,
+                                            color=t["text"],
+                                        ),
+                                        ft.Container(
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                            border_radius=999,
+                                            bgcolor="#183DD598" if done else t.get("surface_soft", "#10FFFFFF"),
+                                            content=ft.Text(
+                                                "Concluído" if done else "Em andamento",
+                                                size=10,
+                                                weight=ft.FontWeight.BOLD,
+                                                color=t["success"] if done else t["text_sec"],
+                                            ),
+                                        ),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                ),
+                                ft.Text(
+                                    f"{current} de {target}",
+                                    size=24,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=t["primary"] if not done else t["success"],
+                                ),
+                                progress_track(
+                                    t,
+                                    pct,
+                                    color=t["success"] if done else t["primary"],
+                                ),
+                            ],
+                            spacing=12,
                         ),
-                    ], spacing=6),
+                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
+                        border=ft.border.all(1, "#12FFFFFF"),
+                        radius=24,
+                    ),
                 )
             )
 
-        celebration_row = []
+        controls = [ft.ResponsiveRow(goal_cards, spacing=10, run_spacing=10)]
         if goals_summary["all_done"]:
-            celebration = t.get(
-                "celebration", "Parabéns! Todas as metas cumpridas!")
-            celebration_row.append(
-                ft.Text(f"🎉 {celebration}", size=14,
-                        weight=ft.FontWeight.BOLD, color=t["success"])
-            )
-
-        # ── Estatísticas de Hoje ─────────────────────────────
-        stat_items = [
-            ("🍅", "Pomodoros", str(today_stats["pomodoros"])),
-            ("⏱️", "Min. Foco", str(today_stats["focus_min"])),
-            ("📝", "Questões", str(today_stats["questions"])),
-            ("⚡", "XP Ganho", str(today_stats["xp_today"])),
-        ]
-
-        stat_cards = []
-        for emoji, label, value in stat_items:
-            stat_cards.append(
-                ft.Container(
-                    bgcolor=t["card"], border_radius=12,
-                    padding=ft.padding.symmetric(vertical=15, horizontal=10),
-                    expand=True,
-                    content=ft.Column([
-                        ft.Text(f"{emoji} {value}", size=22,
-                                weight=ft.FontWeight.BOLD, color=t["primary"]),
-                        ft.Text(label, size=11, color=t["text_sec"]),
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+            controls.append(
+                soft_card(
+                    t,
+                    ft.Row(
+                        [
+                            ft.Text("🎉", size=24),
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        "Todas as metas do dia foram concluídas",
+                                        size=15,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=t["text"],
+                                    ),
+                                    ft.Text(
+                                        t.get("celebration", "Excelente ritmo hoje."),
+                                        size=12,
+                                        color=t["text_sec"],
+                                    ),
+                                ],
+                                spacing=2,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=12,
+                    ),
+                    bgcolor="#1A3DD598",
+                    border=ft.border.all(1, "#333DD598"),
+                    radius=22,
+                    padding=16,
                 )
             )
 
-        # ── Conquistas Recentes ──────────────────────────────
-        new_achs = self.db.check_and_grant_achievements(uid)
-        earned = self.db.get_user_achievements(uid)
-        all_achs = self.db.get_all_achievements()
+        return ft.Column(controls, spacing=10)
+
+    def _build_new_achievements(self, t, achievements):
+        cards = []
+        for ach in achievements:
+            cards.append(
+                soft_card(
+                    t,
+                    ft.Row(
+                        [
+                            ft.Container(
+                                width=50,
+                                height=50,
+                                border_radius=18,
+                                bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                                alignment=ft.Alignment.CENTER,
+                                content=ft.Text(ach["emoji"], size=24),
+                            ),
+                            ft.Column(
+                                [
+                                    ft.Text(
+                                        ach["title"],
+                                        size=15,
+                                        weight=ft.FontWeight.BOLD,
+                                        color=t["bg"],
+                                    ),
+                                    ft.Text(
+                                        f"{ach['description']} (+{ach['xp_reward']} XP)",
+                                        size=12,
+                                        color="#171717",
+                                    ),
+                                ],
+                                spacing=2,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=12,
+                    ),
+                    bgcolor=t["accent"],
+                    radius=22,
+                    padding=16,
+                )
+            )
+        return cards
+
+    def _build_achievements(self, t, earned, all_achs):
         earned_keys = {a["key"] for a in earned}
+        badges = []
 
-        ach_badges = []
-        for ach in all_achs[:12]:  # Mostrar até 12
+        for ach in all_achs[:12]:
             is_earned = ach["key"] in earned_keys
-            ach_badges.append(
+            badges.append(
                 ft.Container(
-                    bgcolor=t["card"] if is_earned else t["secondary"],
-                    border_radius=10, width=70, height=70,
-                    border=ft.border.all(
-                        2, t["success"]) if is_earned else None,
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Column([
-                        ft.Text(ach["emoji"] if is_earned else "🔒", size=22),
-                        ft.Text(ach["title"][:8] if is_earned else "???",
-                                size=8, color=t["text"] if is_earned else t["text_sec"],
-                                text_align=ft.TextAlign.CENTER),
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        spacing=2, alignment=ft.MainAxisAlignment.CENTER),
+                    col={"xs": 4, "sm": 3, "md": 2},
+                    content=soft_card(
+                        t,
+                        ft.Column(
+                            [
+                                ft.Text(ach["emoji"] if is_earned else "🔒", size=24),
+                                ft.Text(
+                                    ach["title"] if is_earned else "Bloqueado",
+                                    size=10,
+                                    weight=ft.FontWeight.W_600,
+                                    text_align=ft.TextAlign.CENTER,
+                                    color=t["text"] if is_earned else t["text_sec"],
+                                ),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=6,
+                        ),
+                        padding=14,
+                        height=100,
+                        bgcolor=t.get("surface_soft", "#09FFFFFF") if is_earned else "#05FFFFFF",
+                        border=ft.border.all(1, "#303DD598" if is_earned else "#0FFFFFFF"),
+                        radius=22,
+                    ),
                 )
             )
 
-        new_ach_cards = []
-        for ach in new_achs:
-            ach_msg = t.get("new_achievement",
-                            "🎉 NOVA CONQUISTA: {emoji} {title}")
-            new_ach_cards.append(
-                ft.Container(
-                    bgcolor=t["accent"], border_radius=12, padding=12,
-                    content=ft.Column([
-                        ft.Text(ach_msg.format(emoji=ach["emoji"], title=ach["title"]),
-                                size=14, weight=ft.FontWeight.BOLD, color=t["bg"]),
-                        ft.Text(f"{ach['description']}  (+{ach['xp_reward']} XP)",
-                                size=12, color=t["bg"]),
-                    ]),
-                )
-            )
+        return ft.ResponsiveRow(badges, spacing=10, run_spacing=10)
 
-        # ── Atividade Semanal ────────────────────────────────
-        sessions = self.db.get_sessions(uid, limit=200)
+    def _build_week_activity(self, t, sessions):
         today_date = datetime.now().date()
         day_names = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
         counts = {}
+
         for i in range(6, -1, -1):
             d = today_date - timedelta(days=i)
             counts[d.isoformat()] = 0
-        for s in sessions:
-            completed = s.get("completed_at", "")
+
+        for session in sessions:
+            completed = session.get("completed_at", "")
             if completed:
                 date_str = completed[:10]
                 if date_str in counts:
                     counts[date_str] += 1
-        max_count = max(counts.values()) if counts.values() else 1
-        if max_count == 0:
-            max_count = 1
 
-        week_bars = []
+        max_count = max(counts.values()) if counts else 1
+        max_count = max(max_count, 1)
+
+        bars = []
         for date_key, count in counts.items():
             d = datetime.fromisoformat(date_key).date()
-            day_label = day_names[d.weekday()]
             is_today = d == today_date
-            bar_height = max(int(40 * count / max_count), 4)
-            bar_color = t["success"] if is_today and count > 0 else t["primary"] if count > 0 else t["secondary"]
+            height = max(int(64 * count / max_count), 8) if count > 0 else 8
+            color = t["success"] if is_today and count > 0 else t["primary"] if count > 0 else "#12FFFFFF"
 
-            week_bars.append(
-                ft.Column([
-                    ft.Text(str(count), size=10, weight=ft.FontWeight.BOLD,
-                            color=t["primary"] if count > 0 else t["text_sec"]),
-                    ft.Container(width=24, height=bar_height,
-                                 bgcolor=bar_color, border_radius=3),
-                    ft.Text(day_label, size=9,
-                            weight=ft.FontWeight.BOLD if is_today else ft.FontWeight.NORMAL,
-                            color=t["success"] if is_today else t["text_sec"]),
-                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
-            )
-
-        # ── Ações Rápidas ────────────────────────────────────
-        actions = [
-            ("🍅 Pomodoro", "pomodoro"),
-            ("📝 Quiz", "study"),
-            ("🃏 Cards", "flashcards"),
-            ("📋 Tarefas", "tasks"),
-        ]
-        action_btns = []
-        for text, target in actions:
-            action_btns.append(
-                ft.ElevatedButton(
-                    content=ft.Text(text), height=42, expand=True,
-                    bgcolor=t["button"], color="#FFFFFF",
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10)),
-                    on_click=lambda _, f=target: self.app.show_view(f),
+            bars.append(
+                ft.Column(
+                    [
+                        ft.Text(
+                            str(count),
+                            size=11,
+                            weight=ft.FontWeight.BOLD,
+                            color=t["text"] if count > 0 else t["text_sec"],
+                        ),
+                        ft.Container(
+                            width=28,
+                            height=height,
+                            border_radius=16,
+                            bgcolor=color,
+                            shadow=[ft.BoxShadow(blur_radius=12, color=with_alpha(color, "55"), offset=ft.Offset(0, 4))],
+                        ),
+                        ft.Text(
+                            day_names[d.weekday()],
+                            size=10,
+                            weight=ft.FontWeight.W_600 if is_today else ft.FontWeight.NORMAL,
+                            color=t["success"] if is_today else t["text_sec"],
+                        ),
+                    ],
+                    width=36,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    alignment=ft.MainAxisAlignment.END,
+                    spacing=6,
                 )
             )
 
-        # ── Layout completo ──────────────────────────────────
-        return ft.Container(
-            expand=True, bgcolor=t["bg"],
-            content=ft.Column(
-                controls=[
-                    # Saudação
-                    ft.Text(greeting_text, size=20,
-                            weight=ft.FontWeight.BOLD, color=t["text"]),
-                    ft.Text(datetime.now().strftime("%A, %d de %B de %Y").capitalize(),
-                            size=12, color=t["text_sec"]),
-                    # XP
-                    xp_card,
-                    # Metas
-                    ft.Text("🎯 Metas de Hoje", size=18,
-                            weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    *goal_cards,
-                    *celebration_row,
-                    # Stats
-                    ft.Text("📊 Resumo de Hoje", size=18,
-                            weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    ft.Row(stat_cards, spacing=6),
-                    # Conquistas
-                    *new_ach_cards,
-                    ft.Text(f"🏆 Conquistas ({len(earned)}/{len(all_achs)})",
-                            size=18, weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    ft.Row(ach_badges, wrap=True, spacing=6, run_spacing=6),
-                    # Atividade semanal
-                    ft.Text("📈 Atividade Semanal", size=18,
-                            weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    ft.Container(
-                        bgcolor=t["card"], border_radius=12, padding=15,
-                        content=ft.Row(
-                            week_bars, alignment=ft.MainAxisAlignment.SPACE_AROUND),
-                    ),
-                    # Ações rápidas
-                    ft.Text("⚡ Ações Rápidas", size=18,
-                            weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    ft.Row(action_btns, spacing=6),
-                    ft.Container(height=10),
-                ],
-                spacing=10,
-                scroll=ft.ScrollMode.AUTO,
+        return soft_card(
+            t,
+            ft.Row(
+                bars,
+                alignment=ft.MainAxisAlignment.SPACE_AROUND,
+                vertical_alignment=ft.CrossAxisAlignment.END,
             ),
-            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+            bgcolor=t.get("surface_soft", "#08FFFFFF"),
+            border=ft.border.all(1, "#12FFFFFF"),
+            radius=24,
+            padding=18,
         )
 
+    def _build_actions(self, t):
+        cards = [
+            ("Pomodoro", "Começar uma sessão agora", "🍅", "pomodoro"),
+            ("Quiz", "Praticar questões e ganhar XP", "📝", "study"),
+            ("Flashcards", "Revisão rápida com repetição", "🃏", "flashcards"),
+            ("Tarefas", "Organizar seu plano do dia", "📋", "tasks"),
+        ]
+
+        action_cards = []
+        for title, subtitle, emoji, target in cards:
+            action_cards.append(
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 3},
+                    content=soft_card(
+                        t,
+                        ft.Column(
+                            [
+                                ft.Text(emoji, size=24),
+                                ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=t["text"]),
+                                ft.Text(subtitle, size=12, color=t["text_sec"]),
+                                ft.TextButton(
+                                    "Abrir",
+                                    icon=ft.Icons.ARROW_FORWARD_ROUNDED,
+                                    on_click=lambda _, dest=target: self.app.show_view(dest),
+                                    style=ft.ButtonStyle(color=t["primary"]),
+                                ),
+                            ],
+                            spacing=8,
+                        ),
+                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
+                        border=ft.border.all(1, "#12FFFFFF"),
+                        radius=24,
+                        height=180,
+                    ),
+                )
+            )
+
+        return ft.ResponsiveRow(action_cards, spacing=10, run_spacing=10)
+
     def _build_guest(self, t):
-        welcome_msg = t.get("welcome", "👋 Bem-vindo ao Switch Focus!")
-        return ft.Container(
-            expand=True, bgcolor=t["bg"],
-            alignment=ft.Alignment.CENTER,
-            padding=30,
-            content=ft.Column(
-                controls=[
-                    ft.Text(welcome_msg, size=22, weight=ft.FontWeight.BOLD, color=t["primary"],
-                            text_align=ft.TextAlign.CENTER),
-                    ft.Container(height=10),
+        hero = soft_card(
+            t,
+            ft.Column(
+                [
+                    ft.Text("Seu app de estudos pode parecer produto de verdade.", size=26, weight=ft.FontWeight.BOLD, color=t["text"], text_align=ft.TextAlign.CENTER),
                     ft.Text(
-                        "Faça login ou cadastre-se para desbloquear:\n\n"
-                        "⭐ Sistema de XP e Níveis\n"
-                        "🔥 Streak de dias consecutivos\n"
-                        "🏆 Conquistas e badges\n"
-                        "🎯 Metas diárias personalizáveis\n"
-                        "🃏 Flashcards com repetição espaçada\n"
-                        "📊 Dashboard completo",
-                        size=14, color=t["text_sec"],
+                        "Entre para liberar progresso, streak, metas, tarefas e uma experiência de estudo mais completa.",
+                        size=13,
+                        color=t["text_sec"],
+                        text_align=ft.TextAlign.CENTER,
                     ),
-                    ft.Container(height=20),
-                    ft.ElevatedButton(
-                        content=ft.Text("🔑 Entrar / Cadastrar"),
-                        width=250, height=45,
-                        bgcolor=t["button"], color="#FFFFFF",
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=10)),
-                        on_click=lambda _: self.app.show_view("login"),
-                    ),
-                    ft.TextButton(
-                        content=ft.Text("Continuar como convidado →"),
-                        on_click=lambda _: self.app.show_view("pomodoro"),
-                        style=ft.ButtonStyle(color=t["text_sec"]),
+                    ft.Row(
+                        [
+                            primary_button(
+                                t,
+                                "Entrar / cadastrar",
+                                lambda _: self.app.show_view("login"),
+                                icon=ft.Icons.LOGIN_ROUNDED,
+                                expand=True,
+                            ),
+                            secondary_button(
+                                t,
+                                "Continuar convidado",
+                                lambda _: self.app.show_view("pomodoro"),
+                                icon=ft.Icons.ARROW_FORWARD_ROUNDED,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=10,
                     ),
                 ],
+                spacing=18,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            radius=30,
+            padding=28,
+            gradient=ft.LinearGradient(
+                begin=ft.Alignment.TOP_LEFT,
+                end=ft.Alignment.BOTTOM_RIGHT,
+                colors=[t["surface_alt"], t["card"], t["secondary"]],
+            ),
+            border=ft.border.all(1, "#12FFFFFF"),
+        )
+
+        preview = ft.ResponsiveRow(
+            [
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 3},
+                    content=metric_card(t, "⭐", "XP e níveis", "Ativo", "Progressão visível"),
+                ),
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 3},
+                    content=metric_card(t, "🔥", "Streak", "Diário", "Constância motivadora"),
+                ),
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 3},
+                    content=metric_card(t, "🎯", "Metas", "Custom", "Clareza no dia"),
+                ),
+                ft.Container(
+                    col={"xs": 12, "sm": 6, "md": 3},
+                    content=metric_card(t, "🏆", "Conquistas", "Gamify", "Cara de app real"),
+                ),
+            ],
+            spacing=10,
+            run_spacing=10,
+        )
+
+        return ft.Container(
+            expand=True,
+            bgcolor=t["bg"],
+            padding=ft.padding.only(left=18, top=14, right=18, bottom=20),
+            content=ft.Column(
+                [hero, section_title(t, "O que desbloqueia com login"), preview],
+                spacing=18,
+                scroll=ft.ScrollMode.AUTO,
             ),
         )
