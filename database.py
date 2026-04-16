@@ -2,6 +2,7 @@ import sqlite3
 import hashlib
 import json
 import os
+import hmac
 from datetime import datetime
 
 from enem_content import EXPANDED_QUESTIONS, EXPANDED_FLASHCARDS
@@ -807,6 +808,37 @@ class DatabaseManager:
     def _hash(password: str) -> str:
         return hashlib.sha256(password.encode()).hexdigest()
 
+    def _verify_password(self, password: str, stored_hash: str) -> bool:
+        """
+        Verifica senha em formato atual (sha256 simples) e legado (salt$hash).
+        """
+        if not stored_hash:
+            return False
+
+        current = self._hash(password)
+        if hmac.compare_digest(stored_hash, current):
+            return True
+
+        if "$" not in stored_hash:
+            return False
+
+        parts = stored_hash.split("$")
+        if len(parts) != 2:
+            return False
+
+        salt, legacy_hash = parts
+        if not salt or not legacy_hash:
+            return False
+
+        # Compatibilidade com versões antigas.
+        candidates = [
+            hashlib.sha256((salt + password).encode()).hexdigest(),
+            hashlib.sha256((password + salt).encode()).hexdigest(),
+            hashlib.sha256((salt + ":" + password).encode()).hexdigest(),
+            hashlib.sha256((password + ":" + salt).encode()).hexdigest(),
+        ]
+        return any(hmac.compare_digest(c, legacy_hash) for c in candidates)
+
     def create_user(self, username, password, display_name=None):
         conn = self._conn()
         try:
@@ -826,12 +858,32 @@ class DatabaseManager:
 
     def authenticate(self, username, password):
         conn = self._conn()
-        user = conn.execute(
-            "SELECT * FROM users WHERE username=? AND password_hash=?",
-            (username, self._hash(password)),
-        ).fetchone()
-        conn.close()
-        return dict(user) if user else None
+        try:
+            user = conn.execute(
+                "SELECT * FROM users WHERE username=?",
+                (username,),
+            ).fetchone()
+            if not user:
+                return None
+
+            user_dict = dict(user)
+            stored_hash = user_dict.get("password_hash", "")
+            if not self._verify_password(password, stored_hash):
+                return None
+
+            # Migra hash legado para o formato atual após login válido.
+            if "$" in stored_hash:
+                new_hash = self._hash(password)
+                conn.execute(
+                    "UPDATE users SET password_hash=? WHERE id=?",
+                    (new_hash, user_dict["id"]),
+                )
+                conn.commit()
+                user_dict["password_hash"] = new_hash
+
+            return user_dict
+        finally:
+            conn.close()
 
     def update_user_theme(self, user_id, theme):
         conn = self._conn()
@@ -1968,19 +2020,21 @@ class DatabaseManager:
     def update_user_password(self, user_id: int, old_password: str, new_password: str) -> bool:
         """Altera a senha do usuário. Retorna True se sucesso, False se senha antiga incorreta."""
         conn = self._conn()
-        user = conn.execute(
-            "SELECT password_hash FROM users WHERE id=?", (user_id,)
-        ).fetchone()
-        if not user or user["password_hash"] != self._hash(old_password):
+        try:
+            user = conn.execute(
+                "SELECT password_hash FROM users WHERE id=?", (user_id,)
+            ).fetchone()
+            if not user or not self._verify_password(old_password, user["password_hash"]):
+                return False
+
+            conn.execute(
+                "UPDATE users SET password_hash=? WHERE id=?",
+                (self._hash(new_password), user_id),
+            )
+            conn.commit()
+            return True
+        finally:
             conn.close()
-            return False
-        conn.execute(
-            "UPDATE users SET password_hash=? WHERE id=?",
-            (self._hash(new_password), user_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
 
     def clear_pomodoro_sessions(self, user_id: int):
         """Remove todas as sessões Pomodoro de um usuário."""
