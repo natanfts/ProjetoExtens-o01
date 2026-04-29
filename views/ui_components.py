@@ -173,17 +173,24 @@ def stat_pill(theme: dict, label: str, value: str, tone: str | None = None):
     )
 
 
-def metric_card(theme: dict, icon: str, label: str, value: str, helper: str = ""):
+def metric_card(theme: dict, icon, label: str, value: str, helper: str = ""):
     return soft_card(
         theme,
         ft.Column(
             [
-                ft.Text(icon, size=24),
+                ft.Container(
+                    width=34,
+                    height=34,
+                    border_radius=10,
+                    bgcolor=theme.get("surface_soft", "#12FFFFFF"),
+                    alignment=ft.Alignment.CENTER,
+                    content=ft.Icon(icon, size=19, color=theme["primary"]),
+                ),
                 ft.Text(value, size=24, weight=ft.FontWeight.BOLD, color=theme["text"]),
                 ft.Text(label, size=12, weight=ft.FontWeight.W_600, color=theme["text_sec"]),
                 ft.Text(helper, size=10, color="#66FFFFFF") if helper else ft.Container(height=0),
             ],
-            spacing=4,
+            spacing=8,
             tight=True,
         ),
         padding=18,

@@ -131,7 +131,11 @@ class DashboardView:
                                 border_radius=18,
                                 bgcolor=t.get("surface_soft", "#12FFFFFF"),
                                 alignment=ft.Alignment.CENTER,
-                                content=ft.Text("🎯", size=26),
+                                content=ft.Icon(
+                                    ft.Icons.TRACK_CHANGES_ROUNDED,
+                                    size=26,
+                                    color=t["primary"],
+                                ),
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.START,
@@ -223,10 +227,10 @@ class DashboardView:
 
     def _build_metrics(self, t, today_stats, streak_info):
         cards = [
-            metric_card(t, "🍅", "Pomodoros", str(today_stats["pomodoros"]), "Sessões completas"),
-            metric_card(t, "⏱", "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
-            metric_card(t, "📝", "Questões", str(today_stats["questions"]), "Treino ativo"),
-            metric_card(t, "🔥", "Melhor streak", str(streak_info["longest"]), "Consistência"),
+            metric_card(t, ft.Icons.TIMER_ROUNDED, "Pomodoros", str(today_stats["pomodoros"]), "Sessões completas"),
+            metric_card(t, ft.Icons.SCHEDULE_ROUNDED, "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
+            metric_card(t, ft.Icons.QUIZ_ROUNDED, "Questões", str(today_stats["questions"]), "Treino ativo"),
+            metric_card(t, ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, "Melhor streak", str(streak_info["longest"]), "Consistência"),
         ]
         return ft.ResponsiveRow(
             controls=[
@@ -239,16 +243,16 @@ class DashboardView:
     def _build_goals(self, t, goals_summary, today_stats):
         goals = goals_summary["goals"]
         goal_configs = {
-            "pomodoro": ("🍅", "Pomodoros", today_stats["pomodoros"]),
-            "xp": ("⚡", "XP ganho", today_stats["xp_today"]),
-            "quiz": ("📝", "Questões", today_stats["questions"]),
+            "pomodoro": (ft.Icons.TIMER_ROUNDED, "Pomodoros", today_stats["pomodoros"]),
+            "xp": (ft.Icons.BOLT_ROUNDED, "XP ganho", today_stats["xp_today"]),
+            "quiz": (ft.Icons.QUIZ_ROUNDED, "Questões", today_stats["questions"]),
         }
 
         goal_cards = []
         for goal in goals:
-            emoji, label, current = goal_configs.get(
+            goal_icon, label, current = goal_configs.get(
                 goal["goal_type"],
-                ("📌", goal["goal_type"].title(), goal["current_value"]),
+                (ft.Icons.LABEL_ROUNDED, goal["goal_type"].title(), goal["current_value"]),
             )
             current = max(current, goal["current_value"])
             target = goal["target_value"]
@@ -264,11 +268,21 @@ class DashboardView:
                             [
                                 ft.Row(
                                     [
-                                        ft.Text(
-                                            f"{emoji} {label}",
-                                            size=15,
-                                            weight=ft.FontWeight.W_700,
-                                            color=t["text"],
+                                        ft.Row(
+                                            [
+                                                ft.Icon(
+                                                    goal_icon,
+                                                    size=16,
+                                                    color=t["success"] if done else t["primary"],
+                                                ),
+                                                ft.Text(
+                                                    label,
+                                                    size=15,
+                                                    weight=ft.FontWeight.W_700,
+                                                    color=t["text"],
+                                                ),
+                                            ],
+                                            spacing=8,
                                         ),
                                         ft.Container(
                                             padding=ft.padding.symmetric(horizontal=10, vertical=6),
@@ -398,7 +412,11 @@ class DashboardView:
                         t,
                         ft.Column(
                             [
-                                ft.Text(ach["emoji"] if is_earned else "🔒", size=24),
+                                ft.Text(ach["emoji"], size=24) if is_earned else ft.Icon(
+                                    ft.Icons.LOCK_ROUNDED,
+                                    size=24,
+                                    color=t["text_sec"],
+                                ),
                                 ft.Text(
                                     ach["title"] if is_earned else "Bloqueado",
                                     size=10,
@@ -493,14 +511,14 @@ class DashboardView:
 
     def _build_actions(self, t):
         cards = [
-            ("Pomodoro", "Começar uma sessão agora", "🍅", "pomodoro"),
-            ("Quiz", "Praticar questões e ganhar XP", "📝", "study"),
-            ("Flashcards", "Revisão rápida com repetição", "🃏", "flashcards"),
-            ("Tarefas", "Organizar seu plano do dia", "📋", "tasks"),
+            ("Pomodoro", "Começar uma sessão agora", ft.Icons.TIMER_ROUNDED, "pomodoro"),
+            ("Quiz", "Praticar questões e ganhar XP", ft.Icons.QUIZ_ROUNDED, "study"),
+            ("Flashcards", "Revisão rápida com repetição", ft.Icons.STYLE_ROUNDED, "flashcards"),
+            ("Tarefas", "Organizar seu plano do dia", ft.Icons.CHECKLIST_ROUNDED, "tasks"),
         ]
 
         action_cards = []
-        for title, subtitle, emoji, target in cards:
+        for title, subtitle, icon, target in cards:
             action_cards.append(
                 ft.Container(
                     col={"xs": 12, "sm": 6, "md": 3},
@@ -508,7 +526,14 @@ class DashboardView:
                         t,
                         ft.Column(
                             [
-                                ft.Text(emoji, size=24),
+                                ft.Container(
+                                    width=36,
+                                    height=36,
+                                    border_radius=11,
+                                    bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                                    alignment=ft.Alignment.CENTER,
+                                    content=ft.Icon(icon, size=20, color=t["primary"]),
+                                ),
                                 ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=t["text"]),
                                 ft.Text(subtitle, size=12, color=t["text_sec"]),
                                 ft.TextButton(
@@ -579,19 +604,19 @@ class DashboardView:
             [
                 ft.Container(
                     col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, "⭐", "XP e níveis", "Ativo", "Progressão visível"),
+                    content=metric_card(t, ft.Icons.STARS_ROUNDED, "XP e níveis", "Ativo", "Progressão visível"),
                 ),
                 ft.Container(
                     col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, "🔥", "Streak", "Diário", "Constância motivadora"),
+                    content=metric_card(t, ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, "Streak", "Diário", "Constância motivadora"),
                 ),
                 ft.Container(
                     col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, "🎯", "Metas", "Custom", "Clareza no dia"),
+                    content=metric_card(t, ft.Icons.TRACK_CHANGES_ROUNDED, "Metas", "Custom", "Clareza no dia"),
                 ),
                 ft.Container(
                     col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, "🏆", "Conquistas", "Gamify", "Cara de app real"),
+                    content=metric_card(t, ft.Icons.EMOJI_EVENTS_ROUNDED, "Conquistas", "Gamify", "Cara de app real"),
                 ),
             ],
             spacing=10,

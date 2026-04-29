@@ -118,11 +118,26 @@ class SwitchFocusApp:
             lp = t.get("level_prefix", "Nivel")
             self._app_bar.actions.append(
                 ft.Container(
-                    content=ft.Text(
-                        f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
-                        size=12,
-                        color=t["text"],
-                        weight=ft.FontWeight.BOLD,
+                    content=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.STARS_ROUNDED, size=14, color=t["accent"]),
+                            ft.Text(
+                                f"{lp} {xp_info['level']}",
+                                size=12,
+                                color=t["text"],
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                            ft.Text("•", size=12, color=t["text_sec"]),
+                            ft.Icon(ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, size=14, color=t["warning"]),
+                            ft.Text(
+                                f"{streak['streak']}d",
+                                size=12,
+                                color=t["text"],
+                                weight=ft.FontWeight.BOLD,
+                            ),
+                        ],
+                        spacing=4,
+                        tight=True,
                     ),
                     margin=ft.margin.only(right=16),
                     padding=ft.padding.symmetric(horizontal=12, vertical=8),
@@ -305,11 +320,26 @@ class SwitchFocusApp:
                 lp = t.get("level_prefix", "Nivel")
                 self._app_bar.actions = [
                     ft.Container(
-                        content=ft.Text(
-                            f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
-                            size=12,
-                            color=t["text"],
-                            weight=ft.FontWeight.BOLD,
+                        content=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.STARS_ROUNDED, size=14, color=t["accent"]),
+                                ft.Text(
+                                    f"{lp} {xp_info['level']}",
+                                    size=12,
+                                    color=t["text"],
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Text("•", size=12, color=t["text_sec"]),
+                                ft.Icon(ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, size=14, color=t["warning"]),
+                                ft.Text(
+                                    f"{streak['streak']}d",
+                                    size=12,
+                                    color=t["text"],
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ],
+                            spacing=4,
+                            tight=True,
                         ),
                         margin=ft.margin.only(right=16),
                         padding=ft.padding.symmetric(horizontal=12, vertical=8),
