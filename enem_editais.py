@@ -2,14 +2,7 @@
 Editais do ENEM — Todos os anos (1998 – 2025) com tema da redação.
 
 Fonte: INEP / MEC — histórico oficial das edições do ENEM.
-
-Links oficiais:
-- Provas e gabaritos (2009–2024): https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem/provas-e-gabaritos
-- Editais: https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem
 """
-
-_INEP_BASE = "https://www.gov.br/inep/pt-br/areas-de-atuacao/avaliacao-e-exames-educacionais/enem"
-_INEP_PROVAS = f"{_INEP_BASE}/provas-e-gabaritos"
 
 ENEM_EDITIONS = [
     {
@@ -370,29 +363,3 @@ ENEM_STATS = {
     "format_change_year": 2009,  # Novo ENEM
     "record_inscritos": {"year": 2014, "count": "8.722.290"},
 }
-
-# ── Links oficiais de provas e gabaritos por ano ─────────────
-# INEP disponibiliza provas e gabaritos a partir de 2009
-ENEM_LINKS = {}
-for _year in range(2009, 2025):
-    ENEM_LINKS[_year] = {
-        "provas_gabaritos": _INEP_PROVAS,
-        "edital": f"{_INEP_BASE}",
-    }
-
-# Anos antigos (1998-2008): sem download oficial, apenas referência
-for _year in range(1998, 2009):
-    ENEM_LINKS[_year] = {
-        "provas_gabaritos": None,
-        "edital": f"{_INEP_BASE}",
-    }
-
-# 2025: edição futura
-ENEM_LINKS[2025] = {
-    "provas_gabaritos": None,
-    "edital": f"{_INEP_BASE}",
-}
-
-# Adicionar links a cada edição
-for _ed in ENEM_EDITIONS:
-    _ed["links"] = ENEM_LINKS.get(_ed["year"], {})

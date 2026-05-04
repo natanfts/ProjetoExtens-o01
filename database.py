@@ -2,8 +2,9 @@ import sqlite3
 import hashlib
 import json
 import os
+import hmac
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from enem_content import EXPANDED_QUESTIONS, EXPANDED_FLASHCARDS
 
@@ -806,24 +807,50 @@ class DatabaseManager:
     # ── Usuários ─────────────────────────────────────────────
     @staticmethod
     def _hash(password: str, salt: bytes | None = None) -> str:
-        """Hash com pbkdf2_hmac + salt. Retorna 'salt_hex$hash_hex'."""
+        """Hash com pbkdf2_hmac + salt. Retorna no formato salt_hex$hash_hex."""
         if salt is None:
             salt = secrets.token_bytes(16)
-        h = hashlib.pbkdf2_hmac(
-            'sha256', password.encode(), salt, iterations=260_000)
-        return salt.hex() + '$' + h.hex()
+        hashed = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode(),
+            salt,
+            iterations=260_000,
+        )
+        return salt.hex() + "$" + hashed.hex()
 
     @staticmethod
     def _verify_password(password: str, stored_hash: str) -> bool:
-        """Verifica senha contra hash armazenado (compatível com formato antigo SHA-256)."""
-        if '$' in stored_hash:
-            # Formato novo: salt$hash
-            salt_hex, _ = stored_hash.split('$', 1)
-            salt = bytes.fromhex(salt_hex)
-            return DatabaseManager._hash(password, salt) == stored_hash
-        else:
-            # Formato legado SHA-256 (sem salt)
-            return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+        """Verifica senha em formato pbkdf2 e legado (sha256 simples)."""
+        if not stored_hash:
+            return False
+
+        if "$" in stored_hash:
+            parts = stored_hash.split("$", 1)
+            if len(parts) != 2:
+                return False
+
+            salt_raw, hash_raw = parts
+            if not salt_raw or not hash_raw:
+                return False
+
+            try:
+                salt = bytes.fromhex(salt_raw)
+                expected = DatabaseManager._hash(password, salt)
+                return hmac.compare_digest(expected, stored_hash)
+            except ValueError:
+                # Compatibilidade com formatos antigos com salt textual.
+                candidates = [
+                    hashlib.sha256((salt_raw + password).encode()).hexdigest(),
+                    hashlib.sha256((password + salt_raw).encode()).hexdigest(),
+                    hashlib.sha256((salt_raw + ":" + password).encode()).hexdigest(),
+                    hashlib.sha256((password + ":" + salt_raw).encode()).hexdigest(),
+                ]
+                return any(hmac.compare_digest(c, hash_raw) for c in candidates)
+
+        return hmac.compare_digest(
+            hashlib.sha256(password.encode()).hexdigest(),
+            stored_hash,
+        )
 
     def create_user(self, username, password, display_name=None):
         conn = self._conn()
@@ -845,19 +872,21 @@ class DatabaseManager:
     def authenticate(self, username, password):
         conn = self._conn()
         user = conn.execute(
-            "SELECT * FROM users WHERE username=?", (username,),
+            "SELECT * FROM users WHERE username=?",
+            (username,),
         ).fetchone()
         if not user:
             conn.close()
             return None
-        if not self._verify_password(password, user['password_hash']):
+        if not self._verify_password(password, user["password_hash"]):
             conn.close()
             return None
-        # Migrar hash legado SHA-256 para pbkdf2 automaticamente
-        if '$' not in user['password_hash']:
+
+        # Migra hash legado sha256 para pbkdf2 automaticamente.
+        if "$" not in user["password_hash"]:
             conn.execute(
                 "UPDATE users SET password_hash=? WHERE id=?",
-                (self._hash(password), user['id']),
+                (self._hash(password), user["id"]),
             )
             conn.commit()
         conn.close()
@@ -911,14 +940,9 @@ class DatabaseManager:
         return [dict(r) for r in rows]
 
     def update_task(self, task_id, **kwargs):
-        ALLOWED_COLS = {'title', 'description', 'status', 'priority',
-                        'pomodoros_est', 'pomodoros_done', 'deadline', 'completed_at'}
-        safe = {k: v for k, v in kwargs.items() if k in ALLOWED_COLS}
-        if not safe:
-            return
         conn = self._conn()
-        sets = ", ".join(f"{k}=?" for k in safe)
-        vals = list(safe.values()) + [task_id]
+        sets = ", ".join(f"{k}=?" for k in kwargs)
+        vals = list(kwargs.values()) + [task_id]
         conn.execute(f"UPDATE tasks SET {sets} WHERE id=?", vals)
         conn.commit()
         conn.close()
@@ -1059,13 +1083,10 @@ class DatabaseManager:
 
     def search_content(self, query, content_type=None):
         conn = self._conn()
-        # Sanitizar caracteres especiais do LIKE
-        safe_q = query.replace('%', '\\%').replace('_', '\\_')
-        like_q = f"%{safe_q}%"
         q = """SELECT * FROM content
-               WHERE (question LIKE ? ESCAPE '\\' OR topic LIKE ? ESCAPE '\\'
-                      OR subject LIKE ? ESCAPE '\\' OR video_title LIKE ? ESCAPE '\\')"""
-        params = [like_q] * 4
+               WHERE (question LIKE ? OR topic LIKE ? OR subject LIKE ?
+                      OR video_title LIKE ?)"""
+        params = [f"%{query}%"] * 4
         if content_type:
             q += " AND content_type=?"
             params.append(content_type)
@@ -1534,11 +1555,11 @@ class DatabaseManager:
             if ach["xp_reward"] > 0:
                 self.add_xp(user_id, ach["xp_reward"],
                             "achievement", f"Conquista: {ach['title']}")
+            conn.close()
             return dict(ach)
         except Exception:
-            return None
-        finally:
             conn.close()
+            return None
 
     def has_achievement(self, user_id: int, achievement_key: str) -> bool:
         if not user_id:
@@ -1759,7 +1780,7 @@ class DatabaseManager:
                        * (0.08 + (5 - quality) * 0.02))
 
         next_review = (
-            datetime.now() + timedelta(days=interval)).isoformat()
+            datetime.now() + __import__('datetime').timedelta(days=interval)).isoformat()
 
         conn.execute(
             """INSERT INTO flashcard_reviews
@@ -2006,19 +2027,21 @@ class DatabaseManager:
     def update_user_password(self, user_id: int, old_password: str, new_password: str) -> bool:
         """Altera a senha do usuário. Retorna True se sucesso, False se senha antiga incorreta."""
         conn = self._conn()
-        user = conn.execute(
-            "SELECT password_hash FROM users WHERE id=?", (user_id,)
-        ).fetchone()
-        if not user or not self._verify_password(old_password, user["password_hash"]):
+        try:
+            user = conn.execute(
+                "SELECT password_hash FROM users WHERE id=?", (user_id,)
+            ).fetchone()
+            if not user or not self._verify_password(old_password, user["password_hash"]):
+                return False
+
+            conn.execute(
+                "UPDATE users SET password_hash=? WHERE id=?",
+                (self._hash(new_password), user_id),
+            )
+            conn.commit()
+            return True
+        finally:
             conn.close()
-            return False
-        conn.execute(
-            "UPDATE users SET password_hash=? WHERE id=?",
-            (self._hash(new_password), user_id),
-        )
-        conn.commit()
-        conn.close()
-        return True
 
     def clear_pomodoro_sessions(self, user_id: int):
         """Remove todas as sessões Pomodoro de um usuário."""

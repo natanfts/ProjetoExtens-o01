@@ -1,0 +1,11 @@
+{
+  "stubPath": "./typings",
+  "venvPath": ".",
+  "venv": "venv",
+  "extraPaths": [
+    "./venv/Lib/site-packages"
+  ],
+  "include": [
+    "."
+  ]
+}

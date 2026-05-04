@@ -3,7 +3,7 @@
 > Aplicativo de estudos mobile-first com timer Pomodoro, quizzes do ENEM, flashcards com repetição espaçada, teorias com integração Wikipedia, editais históricos do ENEM, shorts educativos do YouTube e gamificação — tudo com temas de anime!
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
-![Flet](https://img.shields.io/badge/Flet-0.25+-blue?logo=flutter&logoColor=white)
+![Flet](https://img.shields.io/badge/Flet-0.84-blue?logo=flutter&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -139,7 +139,7 @@ SwitchFocus/
 ├── enem_content.py         # Banco expandido de questões e flashcards ENEM
 ├── enem_syllabus.py        # Conteúdo programático do ENEM (4 áreas, 26+ tópicos)
 ├── enem_editais.py         # Histórico completo dos editais (1998–2025)
-├── themes.py               # 10 temas visuais (factory pattern _make_theme)
+├── themes.py               # 10 temas visuais com paletas de cores
 ├── requirements.txt        # Dependências do projeto
 ├── switch_focus.db         # Banco de dados SQLite (gerado automaticamente)
 └── views/
@@ -233,7 +233,6 @@ O app cobre **todas as áreas** do ENEM com conteúdo abrangente:
 | **v2.0** | Gamificação, Dashboard, Flashcards e Metas Diárias |
 | **v2.1** | Expansão de conteúdo ENEM + Shorts educativos com feed infinito |
 | **v3.0** | **Migração para Flet** — mobile-first, timer async, Teorias ENEM com Wikipedia API, Editais ENEM (1998–2025) |
-| **v3.1** | **Limpeza de código e qualidade** — logging estruturado, factory patterns, refatoração de métodos, tratamento de exceções |
 
 ---
 
@@ -241,22 +240,11 @@ O app cobre **todas as áreas** do ENEM com conteúdo abrangente:
 
 - **Python 3.11** — Linguagem principal
 - **Flet 0.84** — Framework UI multiplataforma (desktop/web/mobile)
-- **SQLite** — Banco de dados local embutido (queries parametrizadas)
+- **SQLite** — Banco de dados local embutido
 - **Wikipedia MediaWiki API** — Pesquisa de artigos para teorias
 - **youtube-search-python** — Busca de vídeos sem API key
 - **Algoritmo SM-2** — Repetição espaçada nos flashcards
 - **asyncio** — Timer Pomodoro e operações assíncronas
-- **logging** — Logging estruturado em todos os módulos
-
-### 🧹 Qualidade de Código (v3.1)
-
-- `print()` substituído por **logging** estruturado em todos os módulos
-- **Factory pattern** em `themes.py` (`_make_theme()`) eliminando 95% de duplicação
-- **Registry pattern** em `app.py` (`_VIEW_REGISTRY`) substituindo 13 branches if/elif
-- **Extração de métodos** no `dashboard_view.py` (7 helpers extraídos do `build()`)
-- Exceções silenciosas substituídas por logging com contexto
-- Queries SQL parametrizadas contra SQL injection
-- Senhas com hash `hashlib.sha256` + salt
 
 ---
 

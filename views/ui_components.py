@@ -2,25 +2,15 @@ import flet as ft
 
 
 def with_alpha(color: str, alpha: str) -> str:
-    if not isinstance(color, str):
-        return color
-
-    raw = color.strip().lstrip("#")
-    if len(alpha) != 2:
-        return color
-
-    hex_chars = "0123456789abcdefABCDEF"
-    if any(ch not in hex_chars for ch in raw):
-        return color
-
-    if len(raw) == 6:
-        return f"#{alpha.upper()}{raw.upper()}"
+    raw = (color or "").lstrip("#")
     if len(raw) == 8:
-        return f"#{alpha.upper()}{raw[2:].upper()}"
-    return color
+        raw = raw[2:]
+    if len(raw) != 6:
+        raw = "000000"
+    return f"#{alpha}{raw}"
 
 
-def soft_shadow(color: str = "#000000", blur: int = 22, spread: int = 0, y: int = 8):
+def soft_shadow(color: str = "#14000000", blur: int = 24, spread: int = 0, y: int = 8):
     return ft.BoxShadow(
         spread_radius=spread,
         blur_radius=blur,
@@ -49,20 +39,8 @@ def soft_card(
         padding=padding,
         border_radius=radius,
         bgcolor=base_color,
-        border=border,
-        gradient=gradient or ft.LinearGradient(
-            begin=ft.Alignment.TOP_LEFT,
-            end=ft.Alignment.BOTTOM_RIGHT,
-            colors=[
-                theme.get("surface_alt", base_color),
-                base_color,
-                theme.get("card", base_color),
-            ],
-        ),
-        shadow=[
-            soft_shadow(theme.get("shadow_dark", "#38091118"), blur=24, y=10),
-            soft_shadow(theme.get("shadow_light", "#0DFFFFFF"), blur=14, y=-3),
-        ],
+        border=border or ft.border.all(1, theme.get("border_soft", "#E9DCC9")),
+        gradient=gradient,
         height=height,
         width=width,
         expand=expand,
@@ -75,7 +53,7 @@ def section_title(theme: dict, title: str, subtitle: str | None = None, action=N
         controls=[
             ft.Text(
                 title,
-                size=18,
+                size=20,
                 weight=ft.FontWeight.W_700,
                 color=theme["text"],
             ),
@@ -85,7 +63,7 @@ def section_title(theme: dict, title: str, subtitle: str | None = None, action=N
                 color=theme["text_sec"],
             ),
         ],
-        spacing=3,
+        spacing=4,
         tight=True,
     )
     if not subtitle:
@@ -102,6 +80,14 @@ def section_title(theme: dict, title: str, subtitle: str | None = None, action=N
     )
 
 
+def _press_overlay(theme: dict):
+    return {
+        ft.ControlState.HOVERED: with_alpha(theme["button"], "1E"),
+        ft.ControlState.PRESSED: with_alpha(theme["button"], "36"),
+        ft.ControlState.FOCUSED: with_alpha(theme["button"], "24"),
+    }
+
+
 def primary_button(
     theme: dict,
     label: str,
@@ -113,7 +99,7 @@ def primary_button(
     height: int = 48,
 ):
     return ft.ElevatedButton(
-        content=label,
+        content=ft.Text(label, color="#FFFFFF", weight=ft.FontWeight.W_600),
         icon=icon,
         on_click=on_click,
         expand=expand,
@@ -122,10 +108,15 @@ def primary_button(
         bgcolor=theme["button"],
         color="#FFFFFF",
         style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=18),
+            shape=ft.RoundedRectangleBorder(radius=16),
             padding=ft.padding.symmetric(horizontal=18, vertical=14),
-            elevation=0,
-            overlay_color="#14FFFFFF",
+            elevation={
+                ft.ControlState.DEFAULT: 2,
+                ft.ControlState.HOVERED: 6,
+                ft.ControlState.PRESSED: 1,
+            },
+            overlay_color=_press_overlay(theme),
+            animation_duration=160,
         ),
     )
 
@@ -141,7 +132,7 @@ def secondary_button(
     height: int = 48,
 ):
     return ft.OutlinedButton(
-        content=label,
+        content=ft.Text(label, color=theme["text"], weight=ft.FontWeight.W_600),
         icon=icon,
         on_click=on_click,
         expand=expand,
@@ -149,23 +140,79 @@ def secondary_button(
         height=height,
         style=ft.ButtonStyle(
             color=theme["text"],
-            side=ft.BorderSide(1, "#14FFFFFF"),
-            bgcolor=theme.get("surface_soft", "#08FFFFFF"),
-            shape=ft.RoundedRectangleBorder(radius=18),
+            side=ft.BorderSide(1, theme.get("border_strong", "#D9C4A6")),
+            bgcolor={
+                ft.ControlState.DEFAULT: theme.get("surface_soft", "#FCF6EC"),
+                ft.ControlState.HOVERED: with_alpha(theme["primary"], "14"),
+                ft.ControlState.PRESSED: with_alpha(theme["primary"], "1F"),
+            },
+            shape=ft.RoundedRectangleBorder(radius=16),
             padding=ft.padding.symmetric(horizontal=18, vertical=14),
+            overlay_color=_press_overlay(theme),
+            animation_duration=160,
         ),
     )
+
+
+def filled_button(
+    theme: dict,
+    label: str,
+    on_click,
+    *,
+    bgcolor: str | None = None,
+    color: str = "#FFFFFF",
+    icon: str | None = None,
+    expand: bool = False,
+    width=None,
+    height: int = 44,
+):
+    base = bgcolor or theme["button"]
+    return ft.ElevatedButton(
+        content=ft.Text(label, color=color, weight=ft.FontWeight.W_600),
+        icon=icon,
+        on_click=on_click,
+        expand=expand,
+        width=width,
+        height=height,
+        bgcolor=base,
+        color=color,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=14),
+            padding=ft.padding.symmetric(horizontal=14, vertical=10),
+            elevation={
+                ft.ControlState.DEFAULT: 2,
+                ft.ControlState.HOVERED: 5,
+                ft.ControlState.PRESSED: 1,
+            },
+            overlay_color={
+                ft.ControlState.HOVERED: "#14FFFFFF",
+                ft.ControlState.PRESSED: "#24FFFFFF",
+            },
+            animation_duration=160,
+        ),
+    )
+
+
+def field_style(theme: dict):
+    return {
+        "bgcolor": theme["entry_bg"],
+        "border_color": theme.get("border_soft", theme["entry_border"]),
+        "focused_border_color": theme["primary"],
+        "color": theme["text"],
+        "label_style": ft.TextStyle(color=theme["text_sec"]),
+    }
 
 
 def stat_pill(theme: dict, label: str, value: str, tone: str | None = None):
     return ft.Container(
         padding=ft.padding.symmetric(horizontal=12, vertical=8),
         border_radius=999,
-        bgcolor=tone or "#12FFFFFF",
+        bgcolor=tone or theme.get("chip_bg", "#F4E8D7"),
+        border=ft.border.all(1, theme.get("border_soft", "#E9DCC9")),
         content=ft.Row(
             [
                 ft.Text(value, size=14, weight=ft.FontWeight.BOLD, color=theme["text"]),
-                ft.Text(label, size=11, color=theme["text_sec"]),
+                ft.Text(label, size=11, color=theme.get("chip_text", theme["text_sec"])),
             ],
             spacing=6,
             tight=True,
@@ -173,39 +220,31 @@ def stat_pill(theme: dict, label: str, value: str, tone: str | None = None):
     )
 
 
-def metric_card(theme: dict, icon, label: str, value: str, helper: str = ""):
+def metric_card(theme: dict, icon: str, label: str, value: str, helper: str = ""):
     return soft_card(
         theme,
         ft.Column(
             [
-                ft.Container(
-                    width=34,
-                    height=34,
-                    border_radius=10,
-                    bgcolor=theme.get("surface_soft", "#12FFFFFF"),
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Icon(icon, size=19, color=theme["primary"]),
-                ),
+                ft.Text(icon, size=22),
                 ft.Text(value, size=24, weight=ft.FontWeight.BOLD, color=theme["text"]),
                 ft.Text(label, size=12, weight=ft.FontWeight.W_600, color=theme["text_sec"]),
-                ft.Text(helper, size=10, color="#66FFFFFF") if helper else ft.Container(height=0),
+                ft.Text(helper, size=10, color=theme["text_sec"]) if helper else ft.Container(height=0),
             ],
-            spacing=8,
+            spacing=5,
             tight=True,
         ),
         padding=18,
-        radius=22,
+        radius=20,
         expand=True,
-        bgcolor=theme.get("surface_soft", "#08FFFFFF"),
-        border=ft.border.all(1, "#12FFFFFF"),
+        bgcolor=theme["card"],
     )
 
 
-def progress_track(theme: dict, value: float, color: str | None = None, bgcolor: str = "#12FFFFFF", height: int = 10):
+def progress_track(theme: dict, value: float, color: str | None = None, bgcolor: str | None = None, height: int = 10):
     return ft.ProgressBar(
         value=value,
         height=height,
         color=color or theme["primary"],
-        bgcolor=bgcolor,
+        bgcolor=bgcolor or with_alpha(theme["primary"], "20"),
         border_radius=height,
     )

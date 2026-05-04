@@ -1,5 +1,6 @@
-import flet as ft
 from datetime import datetime, timedelta
+
+import flet as ft
 
 from views.ui_components import (
     metric_card,
@@ -14,7 +15,7 @@ from views.ui_components import (
 
 
 class DashboardView:
-    """Dashboard principal com foco em progresso, metas e ações rápidas."""
+    """Dashboard principal com visual profissional claro."""
 
     def __init__(self, app):
         self.app = app
@@ -28,7 +29,7 @@ class DashboardView:
         uid = self.app.get_user_id()
 
         if not uid:
-            return self._build_guest(t)
+            return self._build_guest_mode(t)
 
         self.db.update_streak(uid)
 
@@ -41,23 +42,16 @@ class DashboardView:
         goals_summary = self.db.get_daily_goals_summary(uid)
         today_stats = self.db.get_today_stats(uid)
         sessions = self.db.get_sessions(uid, limit=200)
-        new_achs = self.db.check_and_grant_achievements(uid)
-        earned = self.db.get_user_achievements(uid)
-        all_achs = self.db.get_all_achievements()
 
         content = ft.Column(
             controls=[
-                self._build_hero(t, greeting, name, xp_info, streak_info, today_stats),
-                section_title(
-                    t,
-                    "Visão do dia",
-                    "Métricas rápidas para decidir sua próxima ação.",
-                ),
+                self._build_main_hero(t, greeting, name, xp_info, streak_info, today_stats),
+                section_title(t, "Visao rapida", "Tudo que importa para decidir sua proxima acao."),
                 self._build_metrics(t, today_stats, streak_info),
                 section_title(
                     t,
                     "Metas de hoje",
-                    "Progresso visual e recompensa imediata ao concluir.",
+                    "Progresso visual com leitura imediata.",
                     action=ft.TextButton(
                         "Abrir tarefas",
                         icon=ft.Icons.ARROW_OUTWARD_ROUNDED,
@@ -66,26 +60,11 @@ class DashboardView:
                     ),
                 ),
                 self._build_goals(t, goals_summary, today_stats),
-                *self._build_new_achievements(t, new_achs),
-                section_title(
-                    t,
-                    f"Conquistas ({len(earned)}/{len(all_achs)})",
-                    "Gamificação leve para reforçar consistência.",
-                ),
-                self._build_achievements(t, earned, all_achs),
-                section_title(
-                    t,
-                    "Ritmo semanal",
-                    "Atividade dos últimos 7 dias para leitura rápida de constância.",
-                ),
+                section_title(t, "Ritmo semanal", "Consistencia dos ultimos 7 dias."),
                 self._build_week_activity(t, sessions),
-                section_title(
-                    t,
-                    "Ações rápidas",
-                    "Atalhos pensados para uso frequente.",
-                ),
+                section_title(t, "Atalhos", "Acoes rapidas para manter fluxo."),
                 self._build_actions(t),
-                ft.Container(height=6),
+                ft.Container(height=8),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
@@ -98,8 +77,8 @@ class DashboardView:
             content=content,
         )
 
-    def _build_hero(self, t, greeting, name, xp_info, streak_info, today_stats):
-        level_prefix = t.get("level_prefix", "Nível")
+    def _build_main_hero(self, t, greeting, name, xp_info, streak_info, today_stats):
+        level_prefix = t.get("level_prefix", "Nivel")
         xp_name = t.get("xp_name", "XP")
 
         return soft_card(
@@ -112,54 +91,35 @@ class DashboardView:
                                 [
                                     ft.Text(
                                         f"{greeting}, {name}",
-                                        size=24,
+                                        size=28,
                                         weight=ft.FontWeight.BOLD,
                                         color=t["text"],
                                     ),
                                     ft.Text(
-                                        "Seu painel de foco, metas e evolução em um só lugar.",
+                                        "Seu painel de foco, metas e progresso em um so lugar.",
                                         size=13,
-                                        color="#B3FFFFFF",
+                                        color=t["text_sec"],
                                     ),
                                 ],
                                 spacing=4,
                                 expand=True,
                             ),
                             ft.Container(
-                                width=52,
-                                height=52,
+                                width=54,
+                                height=54,
                                 border_radius=18,
-                                bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                                bgcolor=t.get("chip_bg", t["card"]),
                                 alignment=ft.Alignment.CENTER,
-                                content=ft.Icon(
-                                    ft.Icons.TRACK_CHANGES_ROUNDED,
-                                    size=26,
-                                    color=t["primary"],
-                                ),
+                                content=ft.Icon(ft.Icons.INSIGHTS_ROUNDED, size=28, color=t["primary"]),
                             ),
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.START,
                     ),
                     ft.Row(
                         [
-                            stat_pill(
-                                t,
-                                level_prefix,
-                                f"{xp_info['level']}",
-                                tone=t.get("surface_soft", "#12FFFFFF"),
-                            ),
-                            stat_pill(
-                                t,
-                                "Streak",
-                                f"{streak_info['streak']} dias",
-                                tone="#22CDE8D8",
-                            ),
-                            stat_pill(
-                                t,
-                                "XP hoje",
-                                f"{today_stats['xp_today']}",
-                                tone=t.get("surface_soft", "#12FFFFFF"),
-                            ),
+                            stat_pill(t, level_prefix, str(xp_info["level"])),
+                            stat_pill(t, "Streak", f"{streak_info['streak']} dias"),
+                            stat_pill(t, "XP hoje", f"{today_stats['xp_today']}"),
                         ],
                         wrap=True,
                         spacing=8,
@@ -178,7 +138,7 @@ class DashboardView:
                                     ft.Text(
                                         f"Recorde: {streak_info['longest']} dias",
                                         size=11,
-                                        color="#AAFFFFFF",
+                                        color=t["text_sec"],
                                     ),
                                 ],
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -186,9 +146,9 @@ class DashboardView:
                             progress_track(
                                 t,
                                 xp_info["progress"],
-                                color=t["accent"],
-                                bgcolor="#14FFFFFF",
-                                height=12,
+                                color=t["primary"],
+                                bgcolor=with_alpha(t["primary"], "1E"),
+                                height=11,
                             ),
                         ],
                         spacing=8,
@@ -204,7 +164,7 @@ class DashboardView:
                             ),
                             secondary_button(
                                 t,
-                                "Ver estudo",
+                                "Ir para estudo",
                                 lambda _: self.app.show_view("study"),
                                 icon=ft.Icons.SCHOOL_ROUNDED,
                                 expand=True,
@@ -217,47 +177,40 @@ class DashboardView:
             ),
             radius=30,
             padding=24,
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment.TOP_LEFT,
-                end=ft.Alignment.BOTTOM_RIGHT,
-                colors=[t["surface_alt"], t["card"], t["secondary"]],
-            ),
-            border=ft.border.all(1, "#12FFFFFF"),
+            bgcolor=t["card"],
         )
 
     def _build_metrics(self, t, today_stats, streak_info):
         cards = [
-            metric_card(t, ft.Icons.TIMER_ROUNDED, "Pomodoros", str(today_stats["pomodoros"]), "Sessões completas"),
-            metric_card(t, ft.Icons.SCHEDULE_ROUNDED, "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
-            metric_card(t, ft.Icons.QUIZ_ROUNDED, "Questões", str(today_stats["questions"]), "Treino ativo"),
-            metric_card(t, ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, "Melhor streak", str(streak_info["longest"]), "Consistência"),
+            metric_card(t, "P", "Pomodoros", str(today_stats["pomodoros"]), "Sessoes completas"),
+            metric_card(t, "F", "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
+            metric_card(t, "Q", "Questoes", str(today_stats["questions"]), "Treino ativo"),
+            metric_card(t, "S", "Melhor streak", str(streak_info["longest"]), "Constancia"),
         ]
         return ft.ResponsiveRow(
-            controls=[
-                ft.Container(content=card, col={"xs": 6, "sm": 6, "md": 3}) for card in cards
-            ],
+            controls=[ft.Container(content=card, col={"xs": 6, "sm": 6, "md": 3}) for card in cards],
             spacing=10,
             run_spacing=10,
         )
 
     def _build_goals(self, t, goals_summary, today_stats):
-        goals = goals_summary["goals"]
+        goals = goals_summary.get("goals", [])
         goal_configs = {
-            "pomodoro": (ft.Icons.TIMER_ROUNDED, "Pomodoros", today_stats["pomodoros"]),
-            "xp": (ft.Icons.BOLT_ROUNDED, "XP ganho", today_stats["xp_today"]),
-            "quiz": (ft.Icons.QUIZ_ROUNDED, "Questões", today_stats["questions"]),
+            "pomodoro": ("Pomodoros", today_stats["pomodoros"]),
+            "xp": ("XP ganho", today_stats["xp_today"]),
+            "quiz": ("Questoes", today_stats["questions"]),
         }
 
         goal_cards = []
         for goal in goals:
-            goal_icon, label, current = goal_configs.get(
+            label, current = goal_configs.get(
                 goal["goal_type"],
-                (ft.Icons.LABEL_ROUNDED, goal["goal_type"].title(), goal["current_value"]),
+                (goal["goal_type"].title(), goal["current_value"]),
             )
             current = max(current, goal["current_value"])
             target = goal["target_value"]
             done = current >= target
-            pct = min(current / target, 1.0) if target > 0 else 0
+            pct = min(current / target, 1.0) if target > 0 else 0.0
 
             goal_cards.append(
                 ft.Container(
@@ -268,28 +221,14 @@ class DashboardView:
                             [
                                 ft.Row(
                                     [
-                                        ft.Row(
-                                            [
-                                                ft.Icon(
-                                                    goal_icon,
-                                                    size=16,
-                                                    color=t["success"] if done else t["primary"],
-                                                ),
-                                                ft.Text(
-                                                    label,
-                                                    size=15,
-                                                    weight=ft.FontWeight.W_700,
-                                                    color=t["text"],
-                                                ),
-                                            ],
-                                            spacing=8,
-                                        ),
+                                        ft.Text(label, size=15, weight=ft.FontWeight.W_700, color=t["text"]),
                                         ft.Container(
-                                            padding=ft.padding.symmetric(horizontal=10, vertical=6),
+                                            padding=ft.padding.symmetric(horizontal=10, vertical=5),
                                             border_radius=999,
-                                            bgcolor="#183DD598" if done else t.get("surface_soft", "#10FFFFFF"),
+                                            bgcolor=with_alpha(t["success"], "20") if done else t.get("chip_bg", t["card"]),
+                                            border=ft.border.all(1, t.get("border_soft", "#E9DCC9")),
                                             content=ft.Text(
-                                                "Concluído" if done else "Em andamento",
+                                                "Concluido" if done else "Em andamento",
                                                 size=10,
                                                 weight=ft.FontWeight.BOLD,
                                                 color=t["success"] if done else t["text_sec"],
@@ -302,35 +241,30 @@ class DashboardView:
                                     f"{current} de {target}",
                                     size=24,
                                     weight=ft.FontWeight.BOLD,
-                                    color=t["primary"] if not done else t["success"],
-                                ),
-                                progress_track(
-                                    t,
-                                    pct,
                                     color=t["success"] if done else t["primary"],
                                 ),
+                                progress_track(t, pct, color=t["success"] if done else t["primary"]),
                             ],
                             spacing=12,
                         ),
-                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
-                        border=ft.border.all(1, "#12FFFFFF"),
+                        bgcolor=t["card"],
                         radius=24,
                     ),
                 )
             )
 
         controls = [ft.ResponsiveRow(goal_cards, spacing=10, run_spacing=10)]
-        if goals_summary["all_done"]:
+        if goals_summary.get("all_done"):
             controls.append(
                 soft_card(
                     t,
                     ft.Row(
                         [
-                            ft.Text("🎉", size=24),
+                            ft.Icon(ft.Icons.CELEBRATION_ROUNDED, size=24, color=t["success"]),
                             ft.Column(
                                 [
                                     ft.Text(
-                                        "Todas as metas do dia foram concluídas",
+                                        "Todas as metas do dia foram concluidas",
                                         size=15,
                                         weight=ft.FontWeight.BOLD,
                                         color=t["text"],
@@ -347,8 +281,7 @@ class DashboardView:
                         ],
                         spacing=12,
                     ),
-                    bgcolor="#1A3DD598",
-                    border=ft.border.all(1, "#333DD598"),
+                    bgcolor=with_alpha(t["success"], "10"),
                     radius=22,
                     padding=16,
                 )
@@ -356,93 +289,9 @@ class DashboardView:
 
         return ft.Column(controls, spacing=10)
 
-    def _build_new_achievements(self, t, achievements):
-        cards = []
-        for ach in achievements:
-            cards.append(
-                soft_card(
-                    t,
-                    ft.Row(
-                        [
-                            ft.Container(
-                                width=50,
-                                height=50,
-                                border_radius=18,
-                                bgcolor=t.get("surface_soft", "#12FFFFFF"),
-                                alignment=ft.Alignment.CENTER,
-                                content=ft.Text(ach["emoji"], size=24),
-                            ),
-                            ft.Column(
-                                [
-                                    ft.Text(
-                                        ach["title"],
-                                        size=15,
-                                        weight=ft.FontWeight.BOLD,
-                                        color=t["bg"],
-                                    ),
-                                    ft.Text(
-                                        f"{ach['description']} (+{ach['xp_reward']} XP)",
-                                        size=12,
-                                        color="#171717",
-                                    ),
-                                ],
-                                spacing=2,
-                                expand=True,
-                            ),
-                        ],
-                        spacing=12,
-                    ),
-                    bgcolor=t["accent"],
-                    radius=22,
-                    padding=16,
-                )
-            )
-        return cards
-
-    def _build_achievements(self, t, earned, all_achs):
-        earned_keys = {a["key"] for a in earned}
-        badges = []
-
-        for ach in all_achs[:12]:
-            is_earned = ach["key"] in earned_keys
-            badges.append(
-                ft.Container(
-                    col={"xs": 4, "sm": 3, "md": 2},
-                    content=soft_card(
-                        t,
-                        ft.Column(
-                            [
-                                ft.Text(ach["emoji"], size=24) if is_earned else ft.Icon(
-                                    ft.Icons.LOCK_ROUNDED,
-                                    size=24,
-                                    color=t["text_sec"],
-                                ),
-                                ft.Text(
-                                    ach["title"] if is_earned else "Bloqueado",
-                                    size=10,
-                                    weight=ft.FontWeight.W_600,
-                                    text_align=ft.TextAlign.CENTER,
-                                    color=t["text"] if is_earned else t["text_sec"],
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            spacing=6,
-                        ),
-                        padding=14,
-                        height=100,
-                        bgcolor=t.get("surface_soft", "#09FFFFFF") if is_earned else "#05FFFFFF",
-                        border=ft.border.all(1, "#303DD598" if is_earned else "#0FFFFFFF"),
-                        radius=22,
-                    ),
-                )
-            )
-
-        return ft.ResponsiveRow(badges, spacing=10, run_spacing=10)
-
     def _build_week_activity(self, t, sessions):
         today_date = datetime.now().date()
-        day_names = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+        day_names = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sab", "Dom"]
         counts = {}
 
         for i in range(6, -1, -1):
@@ -464,7 +313,7 @@ class DashboardView:
             d = datetime.fromisoformat(date_key).date()
             is_today = d == today_date
             height = max(int(64 * count / max_count), 8) if count > 0 else 8
-            color = t["success"] if is_today and count > 0 else t["primary"] if count > 0 else "#12FFFFFF"
+            color = t["success"] if is_today and count > 0 else t["primary"] if count > 0 else with_alpha(t["text_sec"], "2A")
 
             bars.append(
                 ft.Column(
@@ -480,7 +329,7 @@ class DashboardView:
                             height=height,
                             border_radius=16,
                             bgcolor=color,
-                            shadow=[ft.BoxShadow(blur_radius=12, color=with_alpha(color, "55"), offset=ft.Offset(0, 4))],
+                            shadow=[ft.BoxShadow(blur_radius=10, color=with_alpha(color, "55"), offset=ft.Offset(0, 3))],
                         ),
                         ft.Text(
                             day_names[d.weekday()],
@@ -503,18 +352,17 @@ class DashboardView:
                 alignment=ft.MainAxisAlignment.SPACE_AROUND,
                 vertical_alignment=ft.CrossAxisAlignment.END,
             ),
-            bgcolor=t.get("surface_soft", "#08FFFFFF"),
-            border=ft.border.all(1, "#12FFFFFF"),
+            bgcolor=t["card"],
             radius=24,
             padding=18,
         )
 
     def _build_actions(self, t):
         cards = [
-            ("Pomodoro", "Começar uma sessão agora", ft.Icons.TIMER_ROUNDED, "pomodoro"),
-            ("Quiz", "Praticar questões e ganhar XP", ft.Icons.QUIZ_ROUNDED, "study"),
-            ("Flashcards", "Revisão rápida com repetição", ft.Icons.STYLE_ROUNDED, "flashcards"),
-            ("Tarefas", "Organizar seu plano do dia", ft.Icons.CHECKLIST_ROUNDED, "tasks"),
+            ("Pomodoro", "Comecar sessao agora", ft.Icons.TIMER_ROUNDED, "pomodoro"),
+            ("Quiz", "Praticar questoes e ganhar XP", ft.Icons.QUIZ_ROUNDED, "study"),
+            ("Flashcards", "Revisao por repeticao", ft.Icons.STYLE_ROUNDED, "flashcards"),
+            ("Tarefas", "Organizar plano do dia", ft.Icons.CHECKLIST_ROUNDED, "tasks"),
         ]
 
         action_cards = []
@@ -529,10 +377,10 @@ class DashboardView:
                                 ft.Container(
                                     width=36,
                                     height=36,
-                                    border_radius=11,
-                                    bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                                    border_radius=12,
+                                    bgcolor=t.get("chip_bg", t["card"]),
                                     alignment=ft.Alignment.CENTER,
-                                    content=ft.Icon(icon, size=20, color=t["primary"]),
+                                    content=ft.Icon(icon, size=18, color=t["primary"]),
                                 ),
                                 ft.Text(title, size=16, weight=ft.FontWeight.BOLD, color=t["text"]),
                                 ft.Text(subtitle, size=12, color=t["text_sec"]),
@@ -545,91 +393,159 @@ class DashboardView:
                             ],
                             spacing=8,
                         ),
-                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
-                        border=ft.border.all(1, "#12FFFFFF"),
+                        bgcolor=t["card"],
                         radius=24,
-                        height=180,
+                        height=182,
                     ),
                 )
             )
 
         return ft.ResponsiveRow(action_cards, spacing=10, run_spacing=10)
 
-    def _build_guest(self, t):
+    def _build_guest_mode(self, t):
         hero = soft_card(
             t,
             ft.Column(
                 [
-                    ft.Text("Seu app de estudos pode parecer produto de verdade.", size=26, weight=ft.FontWeight.BOLD, color=t["text"], text_align=ft.TextAlign.CENTER),
+                    ft.Row(
+                        [
+                            ft.Text(
+                                "Bem-vindo ao modo convidado",
+                                size=30,
+                                weight=ft.FontWeight.BOLD,
+                                color=t["text"],
+                                expand=True,
+                            ),
+                            ft.Container(
+                                padding=ft.padding.symmetric(horizontal=12, vertical=7),
+                                border_radius=999,
+                                bgcolor=t.get("chip_bg", t["card"]),
+                                border=ft.border.all(1, t.get("border_soft", "#E9DCC9")),
+                                content=ft.Text("Convidado", size=11, color=t.get("chip_text", t["text_sec"])),
+                            ),
+                        ],
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                    ),
                     ft.Text(
-                        "Entre para liberar progresso, streak, metas, tarefas e uma experiência de estudo mais completa.",
+                        "Voce pode estudar agora com recursos essenciais. Para salvar progresso e desbloquear tudo, entre com sua conta.",
                         size=13,
                         color=t["text_sec"],
-                        text_align=ft.TextAlign.CENTER,
                     ),
                     ft.Row(
                         [
                             primary_button(
                                 t,
-                                "Entrar / cadastrar",
+                                "Entrar / Criar conta",
                                 lambda _: self.app.show_view("login"),
                                 icon=ft.Icons.LOGIN_ROUNDED,
                                 expand=True,
+                                height=50,
                             ),
                             secondary_button(
                                 t,
-                                "Continuar convidado",
+                                "Continuar como convidado",
                                 lambda _: self.app.show_view("pomodoro"),
                                 icon=ft.Icons.ARROW_FORWARD_ROUNDED,
                                 expand=True,
+                                height=50,
                             ),
                         ],
                         spacing=10,
                     ),
+                    ft.TextButton(
+                        "Ver recursos disponiveis",
+                        icon=ft.Icons.VISIBILITY_ROUNDED,
+                        style=ft.ButtonStyle(color=t["primary"]),
+                        on_click=lambda _: None,
+                    ),
                 ],
-                spacing=18,
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=16,
             ),
             radius=30,
-            padding=28,
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment.TOP_LEFT,
-                end=ft.Alignment.BOTTOM_RIGHT,
-                colors=[t["surface_alt"], t["card"], t["secondary"]],
-            ),
-            border=ft.border.all(1, "#12FFFFFF"),
+            padding=26,
+            bgcolor=t["card"],
         )
 
-        preview = ft.ResponsiveRow(
-            [
+        unlocked = [
+            ("Pomodoro", "Sessao de foco e pausas"),
+            ("Tarefas locais", "Checklist durante a sessao"),
+            ("Estudo rapido", "Quiz e revisao imediata"),
+        ]
+        locked = [
+            ("Sincronizacao", "Salvar progresso entre dispositivos"),
+            ("XP e streak", "Gamificacao e constancia"),
+            ("Historico completo", "Relatorios e desempenho"),
+        ]
+
+        unlocked_cards = []
+        for title, subtitle in unlocked:
+            unlocked_cards.append(
                 ft.Container(
-                    col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, ft.Icons.STARS_ROUNDED, "XP e níveis", "Ativo", "Progressão visível"),
-                ),
+                    col={"xs": 12, "sm": 6, "md": 4},
+                    content=soft_card(
+                        t,
+                        ft.Column(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.CHECK_CIRCLE_ROUNDED, color=t["success"], size=18),
+                                        ft.Text("Disponivel", size=11, color=t["success"]),
+                                    ],
+                                    spacing=6,
+                                ),
+                                ft.Text(title, size=15, weight=ft.FontWeight.BOLD, color=t["text"]),
+                                ft.Text(subtitle, size=12, color=t["text_sec"]),
+                            ],
+                            spacing=8,
+                        ),
+                        bgcolor=t["card"],
+                        radius=22,
+                        height=132,
+                    ),
+                )
+            )
+
+        locked_cards = []
+        for title, subtitle in locked:
+            locked_cards.append(
                 ft.Container(
-                    col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, ft.Icons.LOCAL_FIRE_DEPARTMENT_ROUNDED, "Streak", "Diário", "Constância motivadora"),
-                ),
-                ft.Container(
-                    col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, ft.Icons.TRACK_CHANGES_ROUNDED, "Metas", "Custom", "Clareza no dia"),
-                ),
-                ft.Container(
-                    col={"xs": 12, "sm": 6, "md": 3},
-                    content=metric_card(t, ft.Icons.EMOJI_EVENTS_ROUNDED, "Conquistas", "Gamify", "Cara de app real"),
-                ),
-            ],
-            spacing=10,
-            run_spacing=10,
-        )
+                    col={"xs": 12, "sm": 6, "md": 4},
+                    content=soft_card(
+                        t,
+                        ft.Column(
+                            [
+                                ft.Row(
+                                    [
+                                        ft.Icon(ft.Icons.LOCK_ROUNDED, color=t["text_sec"], size=18),
+                                        ft.Text("Com conta", size=11, color=t["text_sec"]),
+                                    ],
+                                    spacing=6,
+                                ),
+                                ft.Text(title, size=15, weight=ft.FontWeight.BOLD, color=t["text"]),
+                                ft.Text(subtitle, size=12, color=t["text_sec"]),
+                            ],
+                            spacing=8,
+                        ),
+                        bgcolor=t["card"],
+                        radius=22,
+                        height=132,
+                    ),
+                )
+            )
 
         return ft.Container(
             expand=True,
             bgcolor=t["bg"],
             padding=ft.padding.only(left=18, top=14, right=18, bottom=20),
             content=ft.Column(
-                [hero, section_title(t, "O que desbloqueia com login"), preview],
-                spacing=18,
+                [
+                    hero,
+                    section_title(t, "Recursos disponiveis", "Ferramentas que voce pode usar agora."),
+                    ft.ResponsiveRow(unlocked_cards, spacing=10, run_spacing=10),
+                    section_title(t, "Desbloquear com conta", "Vantagens para manter consistencia."),
+                    ft.ResponsiveRow(locked_cards, spacing=10, run_spacing=10),
+                ],
+                spacing=16,
                 scroll=ft.ScrollMode.AUTO,
             ),
         )

@@ -358,7 +358,7 @@ class EnemEditaisView:
         # Botão pesquisar tema na teoria
         sections.append(
             ft.Container(
-                padding=ft.padding.only(bottom=10),
+                padding=ft.padding.only(bottom=20),
                 content=ft.ElevatedButton(
                     content=ft.Text(f"🔬 Pesquisar sobre este tema", size=13),
                     height=42, bgcolor=t["primary"], color="#FFFFFF",
@@ -369,51 +369,6 @@ class EnemEditaisView:
                 ),
             )
         )
-
-        # Links oficiais — provas, gabaritos e edital
-        links = ed.get("links", {})
-        link_btns = []
-
-        provas_url = links.get("provas_gabaritos")
-        if provas_url:
-            link_btns.append(
-                ft.ElevatedButton(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.DESCRIPTION,
-                                size=16, color="#FFFFFF"),
-                        ft.Text("📄 Provas e Gabaritos", size=13),
-                    ], spacing=6, alignment=ft.MainAxisAlignment.CENTER),
-                    height=42, bgcolor=t["accent"], color="#FFFFFF",
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10)),
-                    on_click=lambda _, u=provas_url: self._open_url(u),
-                )
-            )
-
-        edital_url = links.get("edital")
-        if edital_url:
-            link_btns.append(
-                ft.ElevatedButton(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.OPEN_IN_NEW,
-                                size=16, color=t["text"]),
-                        ft.Text("📋 Página do ENEM (INEP)", size=13),
-                    ], spacing=6, alignment=ft.MainAxisAlignment.CENTER),
-                    height=42, bgcolor=t["card"], color=t["text"],
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10)),
-                    on_click=lambda _, u=edital_url: self._open_url(u),
-                )
-            )
-
-        if link_btns:
-            sections.append(
-                ft.Container(
-                    padding=ft.padding.only(bottom=20),
-                    content=ft.Column(link_btns, spacing=8,
-                                      horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                )
-            )
 
         return ft.Container(
             expand=True, bgcolor=t["bg"],
@@ -475,8 +430,3 @@ class EnemEditaisView:
             theory._search_articles_api(search_term)
         else:
             self.app.show_view("theory")
-
-    def _open_url(self, url):
-        """Abre URL no navegador."""
-        import webbrowser
-        webbrowser.open(url)
