@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import hmac
+import secrets
 from datetime import datetime
 
 from enem_content import EXPANDED_QUESTIONS, EXPANDED_FLASHCARDS
@@ -805,39 +806,51 @@ class DatabaseManager:
 
     # ── Usuários ─────────────────────────────────────────────
     @staticmethod
-    def _hash(password: str) -> str:
-        return hashlib.sha256(password.encode()).hexdigest()
+    def _hash(password: str, salt: bytes | None = None) -> str:
+        """Hash com pbkdf2_hmac + salt. Retorna no formato salt_hex$hash_hex."""
+        if salt is None:
+            salt = secrets.token_bytes(16)
+        hashed = hashlib.pbkdf2_hmac(
+            "sha256",
+            password.encode(),
+            salt,
+            iterations=260_000,
+        )
+        return salt.hex() + "$" + hashed.hex()
 
-    def _verify_password(self, password: str, stored_hash: str) -> bool:
-        """
-        Verifica senha em formato atual (sha256 simples) e legado (salt$hash).
-        """
+    @staticmethod
+    def _verify_password(password: str, stored_hash: str) -> bool:
+        """Verifica senha em formato pbkdf2 e legado (sha256 simples)."""
         if not stored_hash:
             return False
 
-        current = self._hash(password)
-        if hmac.compare_digest(stored_hash, current):
-            return True
+        if "$" in stored_hash:
+            parts = stored_hash.split("$", 1)
+            if len(parts) != 2:
+                return False
 
-        if "$" not in stored_hash:
-            return False
+            salt_raw, hash_raw = parts
+            if not salt_raw or not hash_raw:
+                return False
 
-        parts = stored_hash.split("$")
-        if len(parts) != 2:
-            return False
+            try:
+                salt = bytes.fromhex(salt_raw)
+                expected = DatabaseManager._hash(password, salt)
+                return hmac.compare_digest(expected, stored_hash)
+            except ValueError:
+                # Compatibilidade com formatos antigos com salt textual.
+                candidates = [
+                    hashlib.sha256((salt_raw + password).encode()).hexdigest(),
+                    hashlib.sha256((password + salt_raw).encode()).hexdigest(),
+                    hashlib.sha256((salt_raw + ":" + password).encode()).hexdigest(),
+                    hashlib.sha256((password + ":" + salt_raw).encode()).hexdigest(),
+                ]
+                return any(hmac.compare_digest(c, hash_raw) for c in candidates)
 
-        salt, legacy_hash = parts
-        if not salt or not legacy_hash:
-            return False
-
-        # Compatibilidade com versões antigas.
-        candidates = [
-            hashlib.sha256((salt + password).encode()).hexdigest(),
-            hashlib.sha256((password + salt).encode()).hexdigest(),
-            hashlib.sha256((salt + ":" + password).encode()).hexdigest(),
-            hashlib.sha256((password + ":" + salt).encode()).hexdigest(),
-        ]
-        return any(hmac.compare_digest(c, legacy_hash) for c in candidates)
+        return hmac.compare_digest(
+            hashlib.sha256(password.encode()).hexdigest(),
+            stored_hash,
+        )
 
     def create_user(self, username, password, display_name=None):
         conn = self._conn()
@@ -858,32 +871,26 @@ class DatabaseManager:
 
     def authenticate(self, username, password):
         conn = self._conn()
-        try:
-            user = conn.execute(
-                "SELECT * FROM users WHERE username=?",
-                (username,),
-            ).fetchone()
-            if not user:
-                return None
-
-            user_dict = dict(user)
-            stored_hash = user_dict.get("password_hash", "")
-            if not self._verify_password(password, stored_hash):
-                return None
-
-            # Migra hash legado para o formato atual após login válido.
-            if "$" in stored_hash:
-                new_hash = self._hash(password)
-                conn.execute(
-                    "UPDATE users SET password_hash=? WHERE id=?",
-                    (new_hash, user_dict["id"]),
-                )
-                conn.commit()
-                user_dict["password_hash"] = new_hash
-
-            return user_dict
-        finally:
+        user = conn.execute(
+            "SELECT * FROM users WHERE username=?",
+            (username,),
+        ).fetchone()
+        if not user:
             conn.close()
+            return None
+        if not self._verify_password(password, user["password_hash"]):
+            conn.close()
+            return None
+
+        # Migra hash legado sha256 para pbkdf2 automaticamente.
+        if "$" not in user["password_hash"]:
+            conn.execute(
+                "UPDATE users SET password_hash=? WHERE id=?",
+                (self._hash(password), user["id"]),
+            )
+            conn.commit()
+        conn.close()
+        return dict(user)
 
     def update_user_theme(self, user_id, theme):
         conn = self._conn()

@@ -4,7 +4,7 @@ from views.ui_components import primary_button, secondary_button, soft_card
 
 
 class LoginView:
-    """Tela de login e cadastro com visual alinhado ao dashboard."""
+    """Tela de login e cadastro com estilo profissional claro."""
 
     def __init__(self, app):
         self.app = app
@@ -14,7 +14,7 @@ class LoginView:
     def build(self):
         t = self.app.theme_mgr.get_theme()
 
-        self._username = self._build_field(t, "Usuário", ft.Icons.PERSON_OUTLINE_ROUNDED)
+        self._username = self._build_field(t, "Usuario", ft.Icons.PERSON_OUTLINE_ROUNDED)
         self._password = self._build_field(
             t,
             "Senha",
@@ -24,12 +24,12 @@ class LoginView:
         )
         self._display_name = self._build_field(
             t,
-            "Nome de exibição",
+            "Nome de exibicao",
             ft.Icons.BADGE_OUTLINED,
             visible=False,
         )
 
-        self._title = ft.Text("Entrar", size=28, weight=ft.FontWeight.BOLD, color=t["text"])
+        self._title = ft.Text("Entrar", size=30, weight=ft.FontWeight.BOLD, color=t["text"])
         self._subtitle = ft.Text(
             "Acesse sua conta para salvar progresso, streak e conquistas.",
             size=13,
@@ -43,18 +43,20 @@ class LoginView:
             self._do_action,
             icon=ft.Icons.LOGIN_ROUNDED,
             width=320,
+            height=50,
         )
         self._toggle_btn = ft.TextButton(
-            "Não tem conta? Cadastre-se",
+            "Nao tem conta? Cadastre-se",
             on_click=self._toggle_mode,
             style=ft.ButtonStyle(color=t["text_sec"]),
         )
         self._skip_btn = secondary_button(
             t,
             "Continuar como convidado",
-            lambda _: self.app.show_view("pomodoro"),
+            lambda _: self.app.show_view("dashboard"),
             icon=ft.Icons.ARROW_FORWARD_ROUNDED,
             width=320,
+            height=50,
         )
 
         left_panel = soft_card(
@@ -65,27 +67,27 @@ class LoginView:
                         width=58,
                         height=58,
                         border_radius=20,
-                        bgcolor=t.get("surface_soft", "#12FFFFFF"),
+                        bgcolor=t.get("chip_bg", t["card"]),
                         alignment=ft.Alignment.CENTER,
-                        content=ft.Text("🎓", size=28),
+                        content=ft.Icon(ft.Icons.AUTO_AWESOME_ROUNDED, size=28, color=t["primary"]),
                     ),
                     ft.Text(
-                        "Estude com ritmo, clareza e sensação de produto premium.",
-                        size=26,
+                        "Produtividade com cara de produto premium.",
+                        size=28,
                         weight=ft.FontWeight.BOLD,
                         color=t["text"],
                     ),
                     ft.Text(
-                        "Login libera sincronização de dados, metas, histórico, gamificação e personalização.",
+                        "Login libera sincronizacao de dados, metas, historico, gamificacao e personalizacao.",
                         size=13,
                         color=t["text_sec"],
                     ),
                     ft.Column(
                         [
-                            self._feature_line(t, "⭐ XP, níveis e evolução visível"),
-                            self._feature_line(t, "🔥 streak diário para reforçar consistência"),
-                            self._feature_line(t, "🏆 conquistas com feedback imediato"),
-                            self._feature_line(t, "🎯 metas e tarefas em um fluxo único"),
+                            self._feature_line(t, "XP, niveis e evolucao visivel"),
+                            self._feature_line(t, "Streak diario para reforcar consistencia"),
+                            self._feature_line(t, "Conquistas com feedback imediato"),
+                            self._feature_line(t, "Metas e tarefas em um fluxo unico"),
                         ],
                         spacing=10,
                     ),
@@ -93,14 +95,9 @@ class LoginView:
                 spacing=18,
             ),
             radius=30,
-            padding=26,
+            padding=28,
             expand=True,
-            gradient=ft.LinearGradient(
-                begin=ft.Alignment.TOP_LEFT,
-                end=ft.Alignment.BOTTOM_RIGHT,
-                colors=[t["surface_alt"], t["card"], t["secondary"]],
-            ),
-            border=ft.border.all(1, "#12FFFFFF"),
+            bgcolor=t["card"],
         )
 
         form_panel = soft_card(
@@ -113,20 +110,19 @@ class LoginView:
                     self._username,
                     self._password,
                     self._display_name,
-                    ft.Container(height=6),
+                    ft.Container(height=8),
                     self._action_btn,
                     self._toggle_btn,
-                    ft.Container(height=6),
+                    ft.Container(height=4),
                     self._skip_btn,
                 ],
                 spacing=10,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
             radius=30,
-            padding=26,
-            width=380,
-            bgcolor=t.get("surface_soft", "#08FFFFFF"),
-            border=ft.border.all(1, "#12FFFFFF"),
+            padding=28,
+            width=390,
+            bgcolor=t["card"],
         )
 
         return ft.Container(
@@ -154,9 +150,9 @@ class LoginView:
             width=320,
             height=56,
             prefix_icon=icon,
-            border_radius=18,
-            bgcolor=t.get("surface_soft", "#08FFFFFF"),
-            border_color="#12FFFFFF",
+            border_radius=16,
+            bgcolor=t["entry_bg"],
+            border_color=t.get("border_soft", t["entry_border"]),
             focused_border_color=t["primary"],
             color=t["text"],
             label_style=ft.TextStyle(color=t["text_sec"]),
@@ -171,7 +167,7 @@ class LoginView:
                     width=22,
                     height=22,
                     border_radius=999,
-                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                    bgcolor=t.get("chip_bg", t["card"]),
                     alignment=ft.Alignment.CENTER,
                     content=ft.Icon(ft.Icons.CHECK_ROUNDED, size=14, color=t["primary"]),
                 ),
@@ -184,10 +180,10 @@ class LoginView:
         if self._mode == "login":
             self._mode = "register"
             self._title.value = "Criar conta"
-            self._subtitle.value = "Cadastre-se para salvar seu desempenho e personalizar a experiência."
+            self._subtitle.value = "Cadastre-se para salvar seu desempenho e personalizar a experiencia."
             self._action_btn.content = "Cadastrar"
             self._action_btn.icon = ft.Icons.PERSON_ADD_ALT_1_ROUNDED
-            self._toggle_btn.content = "Já tem conta? Faça login"
+            self._toggle_btn.content = "Ja tem conta? Faca login"
             self._display_name.visible = True
         else:
             self._mode = "login"
@@ -195,7 +191,7 @@ class LoginView:
             self._subtitle.value = "Acesse sua conta para salvar progresso, streak e conquistas."
             self._action_btn.content = "Entrar"
             self._action_btn.icon = ft.Icons.LOGIN_ROUNDED
-            self._toggle_btn.content = "Não tem conta? Cadastre-se"
+            self._toggle_btn.content = "Nao tem conta? Cadastre-se"
             self._display_name.visible = False
         self.app.page.update()
 
@@ -204,7 +200,7 @@ class LoginView:
         password = self._password.value.strip() if self._password.value else ""
 
         if not username or not password:
-            self.app.show_snackbar("Preencha usuário e senha.")
+            self.app.show_snackbar("Preencha usuario e senha.")
             return
 
         if self._mode == "register" and len(password) < 4:
@@ -218,7 +214,7 @@ class LoginView:
                 self.app.show_snackbar("Login realizado com sucesso.")
                 self.app.show_view("dashboard")
             else:
-                self.app.show_snackbar("Usuário ou senha inválidos.", bgcolor="#F44336")
+                self.app.show_snackbar("Usuario ou senha invalidos.", bgcolor="#C45144")
         else:
             display = (self._display_name.value or "").strip() or username
             user = self.db.create_user(username, password, display)
@@ -227,4 +223,4 @@ class LoginView:
                 self.app.show_snackbar("Conta criada com sucesso.")
                 self.app.show_view("dashboard")
             else:
-                self.app.show_snackbar("Usuário já existe.", bgcolor="#F44336")
+                self.app.show_snackbar("Usuario ja existe.", bgcolor="#C45144")

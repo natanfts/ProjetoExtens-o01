@@ -23,18 +23,27 @@ class SwitchFocusApp:
         self._current_view_name = None
 
     def initialize(self):
+        self.theme_mgr.set_active_view("dashboard")
         t = self.theme_mgr.get_theme()
 
         self.page.title = "Switch Focus"
-        self.page.theme_mode = ft.ThemeMode.DARK
+        self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.bgcolor = t["bg"]
         self.page.padding = 0
         self.page.window.width = 420
         self.page.window.height = 800
         self.page.window.min_width = 380
         self.page.window.min_height = 720
+        self.page.theme = ft.Theme(
+            color_scheme_seed=t["primary"],
+            font_family="Segoe UI",
+        )
 
-        self._content = ft.Container(expand=True, bgcolor=t["bg"])
+        self._content = ft.Container(
+            expand=True,
+            bgcolor=t["bg"],
+            content=ft.Container(expand=True),
+        )
 
         self._app_bar = ft.AppBar(
             title=ft.Text("Switch Focus", size=20, weight=ft.FontWeight.BOLD, color=t["text"]),
@@ -49,7 +58,7 @@ class SwitchFocusApp:
         self._nav_bar = ft.NavigationBar(
             selected_index=0,
             bgcolor=t["sidebar"],
-            indicator_color=with_alpha(t["primary"], "33"),
+            indicator_color=with_alpha(t["primary"], "2E"),
             label_behavior=ft.NavigationBarLabelBehavior.ALWAYS_SHOW,
             destinations=[
                 ft.NavigationBarDestination(icon=ft.Icons.HOME_ROUNDED, label="Home"),
@@ -73,6 +82,7 @@ class SwitchFocusApp:
 
     def show_view(self, name: str):
         self._current_view_name = name
+        self.theme_mgr.set_active_view(name)
         t = self.theme_mgr.get_theme()
 
         titles = {
@@ -116,14 +126,15 @@ class SwitchFocusApp:
             self._app_bar.actions.append(
                 ft.Container(
                     content=ft.Text(
-                        f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
+                        f"Nivel {xp_info['level']}  |  Streak {streak['streak']}d",
                         size=12,
                         color=t["text"],
                         weight=ft.FontWeight.BOLD,
                     ),
                     margin=ft.margin.only(right=16),
                     padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                    bgcolor=t.get("chip_bg", t["card"]),
+                    border=ft.border.all(1, t.get("border_soft", "#E9DCC9")),
                     border_radius=999,
                 )
             )
@@ -149,42 +160,57 @@ class SwitchFocusApp:
                 view.on_show()
             content = view.build()
 
+        self._content.bgcolor = t["bg"]
         self._content.content = content
+        self._nav_bar.bgcolor = t["sidebar"]
+        self._nav_bar.indicator_color = with_alpha(t["primary"], "2E")
+        self.page.bgcolor = t["bg"]
         self.page.update()
 
     def _create_view(self, name):
         if name == "dashboard":
             from views.dashboard_view import DashboardView
+
             return DashboardView(self)
         if name == "pomodoro":
             from views.pomodoro_view import PomodoroView
+
             return PomodoroView(self)
         if name == "tasks":
             from views.tasks_view import TasksView
+
             return TasksView(self)
         if name == "study":
             from views.study_view import StudyView
+
             return StudyView(self)
         if name == "flashcards":
             from views.flashcards_view import FlashcardsView
+
             return FlashcardsView(self)
         if name == "shorts":
             from views.shorts_view import ShortsView
+
             return ShortsView(self)
         if name == "history":
             from views.history_view import HistoryView
+
             return HistoryView(self)
         if name == "settings":
             from views.settings_view import SettingsView
+
             return SettingsView(self)
         if name == "theory":
             from views.theory_view import TheoryView
+
             return TheoryView(self)
         if name == "enem_editais":
             from views.enem_editais_view import EnemEditaisView
+
             return EnemEditaisView(self)
         if name == "login":
             from views.login_view import LoginView
+
             return LoginView(self)
         return None
 
@@ -192,22 +218,22 @@ class SwitchFocusApp:
         t = self.theme_mgr.get_theme()
 
         items = [
-            (ft.Icons.MENU_BOOK_ROUNDED, "Teorias ENEM", "Conteudo teorico e revisao", "theory"),
-            (ft.Icons.DESCRIPTION_ROUNDED, "Editais do ENEM", "Consulta rapida de informacoes", "enem_editais"),
-            (ft.Icons.STYLE_ROUNDED, "Flashcards", "Memorizacao com repeticao", "flashcards"),
-            (ft.Icons.VIDEO_LIBRARY_ROUNDED, "Shorts / Videos", "Consumo rapido de conteudo", "shorts"),
-            (ft.Icons.BAR_CHART_ROUNDED, "Historico", "Evolucao e desempenho", "history"),
-            (ft.Icons.SETTINGS_ROUNDED, "Configuracoes", "Preferencias do aplicativo", "settings"),
+            (ft.Icons.MENU_BOOK_ROUNDED, "Teorias ENEM", "Conteudo teorico", "theory"),
+            (ft.Icons.DESCRIPTION_ROUNDED, "Editais do ENEM", "Consulta rapida", "enem_editais"),
+            (ft.Icons.STYLE_ROUNDED, "Flashcards", "Repeticao espaçada", "flashcards"),
+            (ft.Icons.VIDEO_LIBRARY_ROUNDED, "Shorts / Videos", "Conteudo rapido", "shorts"),
+            (ft.Icons.BAR_CHART_ROUNDED, "Historico", "Evolucao", "history"),
+            (ft.Icons.SETTINGS_ROUNDED, "Configuracoes", "Preferencias", "settings"),
         ]
 
         if self.current_user:
             user_text = self.current_user.get("display_name", "Usuario")
             user_subtitle = "Conta conectada"
-            items.append((ft.Icons.LOGOUT_ROUNDED, "Sair", "Encerrar sessao atual", "_logout"))
+            items.append((ft.Icons.LOGOUT_ROUNDED, "Sair", "Encerrar sessao", "_logout"))
         else:
             user_text = "Convidado"
             user_subtitle = "Explorando sem conta"
-            items.append((ft.Icons.LOGIN_ROUNDED, "Entrar / Cadastrar", "Salvar progresso e desbloquear recursos", "login"))
+            items.append((ft.Icons.LOGIN_ROUNDED, "Entrar / Cadastrar", "Salvar progresso", "login"))
 
         tiles = []
         for icon, label, subtitle, target in items:
@@ -219,7 +245,7 @@ class SwitchFocusApp:
                             width=42,
                             height=42,
                             border_radius=14,
-                            bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                            bgcolor=t.get("surface_soft", t["card"]),
                             alignment=ft.Alignment.CENTER,
                             content=ft.Icon(icon, color=t["primary"]),
                         ),
@@ -228,8 +254,7 @@ class SwitchFocusApp:
                         trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=t["text_sec"]),
                         on_click=lambda _, tgt=target: self._on_more_item(tgt),
                     ),
-                    bgcolor=t.get("surface_soft", "#08FFFFFF"),
-                    border=ft.border.all(1, "#12FFFFFF"),
+                    bgcolor=t["card"],
                     radius=22,
                     padding=8,
                 )
@@ -249,7 +274,7 @@ class SwitchFocusApp:
                                     width=56,
                                     height=56,
                                     border_radius=20,
-                                    bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                                    bgcolor=t.get("surface_soft", t["card"]),
                                     alignment=ft.Alignment.CENTER,
                                     content=ft.Icon(ft.Icons.ACCOUNT_CIRCLE_ROUNDED, size=34, color=t["primary"]),
                                 ),
@@ -270,14 +295,14 @@ class SwitchFocusApp:
                             spacing=15,
                         ),
                         padding=18,
-                        bgcolor=t.get("surface_soft", "#08FFFFFF"),
-                        border=ft.border.all(1, "#12FFFFFF"),
+                        bgcolor=t["card"],
                         radius=24,
                     ),
                     ft.Text("Mais recursos", size=18, weight=ft.FontWeight.BOLD, color=t["text"]),
                     *tiles,
                 ],
                 spacing=12,
+                scroll=ft.ScrollMode.AUTO,
             ),
         )
 
@@ -310,18 +335,18 @@ class SwitchFocusApp:
                 t = self.theme_mgr.get_theme()
                 xp_info = self.db.get_xp_info(uid)
                 streak = self.db.get_streak(uid)
-                lp = t.get("level_prefix", "Nivel")
                 self._app_bar.actions = [
                     ft.Container(
                         content=ft.Text(
-                            f"⭐ {lp} {xp_info['level']}  •  🔥 {streak['streak']}d",
+                            f"Nivel {xp_info['level']}  |  Streak {streak['streak']}d",
                             size=12,
                             color=t["text"],
                             weight=ft.FontWeight.BOLD,
                         ),
                         margin=ft.margin.only(right=16),
                         padding=ft.padding.symmetric(horizontal=12, vertical=8),
-                        bgcolor=t.get("surface_soft", "#10FFFFFF"),
+                        bgcolor=t.get("chip_bg", t["card"]),
+                        border=ft.border.all(1, t.get("border_soft", "#E9DCC9")),
                         border_radius=999,
                     )
                 ]
@@ -331,7 +356,7 @@ class SwitchFocusApp:
         self.page.bgcolor = t["bg"]
         self._content.bgcolor = t["bg"]
         self._nav_bar.bgcolor = t["sidebar"]
-        self._nav_bar.indicator_color = with_alpha(t["primary"], "33")
+        self._nav_bar.indicator_color = with_alpha(t["primary"], "2E")
         self._app_bar.bgcolor = t["sidebar"]
 
     def refresh_theme(self):
