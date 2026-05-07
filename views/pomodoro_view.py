@@ -19,6 +19,8 @@ class PomodoroView:
     def __init__(self, app):
         self.app = app
         self.db = app.db
+        self._reveal_blocks: list[ft.Container] = []
+        self._revealing = False
 
         self._focus_min = 25
         self._short_min = 5
@@ -35,6 +37,21 @@ class PomodoroView:
         self._counter_label = ft.Text("Sessao 0/4", size=13)
         self._progress_bar = ft.ProgressBar(value=1.0, height=10, border_radius=5)
         self._task_label = ft.Text("Nenhuma tarefa selecionada", size=12)
+        self._time_shell = ft.Container(
+            content=self._time_label,
+            scale=1.0,
+            opacity=1.0,
+            animate_scale=260,
+            animate_opacity=260,
+        )
+        self._progress_shell = ft.Container(
+            content=self._progress_bar,
+            width=280,
+            padding=ft.padding.only(top=10),
+            scale=1.0,
+            animate_scale=220,
+        )
+        self._urgent_pulse = False
 
         self._start_btn = ft.ElevatedButton(content=ft.Text("Iniciar"), height=44, width=120, on_click=self._start)
         self._pause_btn = ft.ElevatedButton(content=ft.Text("Pausar"), height=44, width=120, on_click=self._pause, disabled=True)
@@ -68,6 +85,7 @@ class PomodoroView:
 
     def build(self):
         t = self.app.theme_mgr.get_theme()
+        self._reveal_blocks = []
 
         self._time_label.color = t["text"]
         self._session_label.color = t["primary"]
@@ -75,6 +93,10 @@ class PomodoroView:
         self._progress_bar.color = t["progress"]
         self._progress_bar.bgcolor = with_alpha(t["primary"], "20")
         self._task_label.color = t["text_sec"]
+        self._time_shell.animate_scale = self.app.motion_ms(260)
+        self._time_shell.animate_opacity = self.app.motion_ms(260)
+        self._progress_shell.animate_scale = self.app.motion_ms(220)
+        self._apply_urgency_feedback(self._running and self._session_type == "foco" and self._seconds_left <= 10)
 
         self._start_btn.style = self._btn_style(t, t["success"])
         self._pause_btn.style = self._btn_style(t, t["warning"])
@@ -124,9 +146,9 @@ class PomodoroView:
             ft.Column(
                 [
                     self._session_label,
-                    self._time_label,
+                    self._time_shell,
                     self._counter_label,
-                    ft.Container(content=self._progress_bar, width=280, padding=ft.padding.only(top=10)),
+                    self._progress_shell,
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 alignment=ft.MainAxisAlignment.CENTER,
@@ -139,17 +161,17 @@ class PomodoroView:
             bgcolor=t["card"],
         )
 
-        return ft.Container(
+        content = ft.Container(
             expand=True,
             bgcolor=t["bg"],
             alignment=ft.Alignment.TOP_CENTER,
             padding=ft.padding.symmetric(horizontal=20, vertical=14),
             content=ft.Column(
                 [
-                    timer_card,
-                    ft.Row([self._start_btn, self._pause_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
-                    ft.Row([self._reset_btn, self._skip_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=10),
-                    soft_card(
+                    self._reveal(timer_card),
+                    self._reveal(ft.Row([self._start_btn, self._pause_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=10)),
+                    self._reveal(ft.Row([self._reset_btn, self._skip_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=10)),
+                    self._reveal(soft_card(
                         t,
                         ft.Row(
                             [
@@ -163,18 +185,47 @@ class PomodoroView:
                         padding=12,
                         radius=18,
                         bgcolor=t["card"],
-                    ),
-                    ft.Row(
+                    )),
+                    self._reveal(ft.Row(
                         mode_controls,
                         alignment=ft.MainAxisAlignment.CENTER,
                         spacing=8,
                         scroll=ft.ScrollMode.AUTO,
-                    ),
+                    )),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=10,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        return content
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.035),
+            animate_opacity=self.app.motion_ms(220),
+            animate_offset=self.app.motion_ms(220),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_reveal(self):
+        if self.app.reduce_motion or self._revealing:
+            return
+        if self.app._current_view_name != "pomodoro":
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.045)
+        finally:
+            self._revealing = False
 
     def _start(self, e=None):
         if not self._running:
@@ -190,6 +241,7 @@ class PomodoroView:
         self._start_btn.disabled = False
         self._start_btn.content = ft.Text("Continuar")
         self._pause_btn.disabled = True
+        self._apply_urgency_feedback(False)
         self.app.page.update()
 
     def _reset(self, e=None):
@@ -201,6 +253,7 @@ class PomodoroView:
         self._start_btn.content = ft.Text("Iniciar")
         self._pause_btn.disabled = True
         self._progress_bar.value = 1.0
+        self._apply_urgency_feedback(False)
         self._update_display()
         self.app.page.update()
 
@@ -213,6 +266,7 @@ class PomodoroView:
             total = self._get_duration() * 60
             self._progress_bar.value = self._seconds_left / total if total else 0
             self._update_display()
+            self._apply_urgency_feedback(self._session_type == "foco" and self._seconds_left <= 10)
             try:
                 self.app.page.update()
             except Exception:
@@ -282,6 +336,7 @@ class PomodoroView:
         self._start_btn.content = ft.Text("Iniciar")
         self._pause_btn.disabled = True
         self._started_at = None
+        self._apply_urgency_feedback(False)
 
         t = self.app.theme_mgr.get_theme()
         labels = {
@@ -321,6 +376,24 @@ class PomodoroView:
         m, s = divmod(self._seconds_left, 60)
         self._time_label.value = f"{m:02d}:{s:02d}"
         self._counter_label.value = f"Sessao {self._sessions_done}/4"
+
+    def _apply_urgency_feedback(self, urgent: bool):
+        t = self.app.theme_mgr.get_theme()
+        if urgent and not self.app.reduce_motion:
+            self._urgent_pulse = not self._urgent_pulse
+            self._time_shell.scale = 1.03 if self._urgent_pulse else 1.0
+            self._time_shell.opacity = 0.88 if self._urgent_pulse else 1.0
+            self._progress_shell.scale = 1.01 if self._urgent_pulse else 1.0
+            self._session_label.color = t["danger"]
+            self._progress_bar.color = t["danger"]
+            return
+
+        self._urgent_pulse = False
+        self._time_shell.scale = 1.0
+        self._time_shell.opacity = 1.0
+        self._progress_shell.scale = 1.0
+        self._session_label.color = t["primary"]
+        self._progress_bar.color = t["progress"]
 
     def _pick_task(self, e=None):
         tasks = self.db.get_tasks(user_id=self.app.get_user_id(), status="pendente")

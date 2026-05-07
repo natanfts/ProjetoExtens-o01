@@ -1,4 +1,5 @@
 import threading
+import asyncio
 
 import flet as ft
 
@@ -12,6 +13,7 @@ class SwitchFocusApp:
     """Aplicativo principal Switch Focus."""
 
     NAV_VIEWS = ["dashboard", "pomodoro", "tasks", "study", "more"]
+    MOTION_PREF_KEY = "switch_focus.reduce_motion"
 
     def __init__(self, page: ft.Page):
         self.page = page
@@ -21,8 +23,13 @@ class SwitchFocusApp:
         self.current_user = None
         self._views: dict = {}
         self._current_view_name = None
+        self._active_view_obj = None
+        self.reduce_motion = False
+        self._more_reveal_blocks: list[ft.Container] = []
+        self._revealing_more = False
 
     def initialize(self):
+        self.reduce_motion = self._load_motion_pref()
         self.theme_mgr.set_active_view("dashboard")
         t = self.theme_mgr.get_theme()
 
@@ -38,11 +45,21 @@ class SwitchFocusApp:
             color_scheme_seed=t["primary"],
             font_family="Segoe UI",
         )
+        self.page.on_keyboard_event = self._on_keyboard_event
+
+        self._content_stage = ft.Container(
+            expand=True,
+            animate_opacity=self.motion_ms(180),
+            animate_offset=self.motion_ms(180),
+            opacity=1.0,
+            offset=ft.Offset(0, 0),
+            content=ft.Container(expand=True),
+        )
 
         self._content = ft.Container(
             expand=True,
             bgcolor=t["bg"],
-            content=ft.Container(expand=True),
+            content=self._content_stage,
         )
 
         self._app_bar = ft.AppBar(
@@ -84,6 +101,7 @@ class SwitchFocusApp:
         self._current_view_name = name
         self.theme_mgr.set_active_view(name)
         t = self.theme_mgr.get_theme()
+        self._animate_transition_out()
 
         titles = {
             "dashboard": "Dashboard",
@@ -144,13 +162,15 @@ class SwitchFocusApp:
 
         if name == "more":
             content = self._build_more_menu()
+            self._active_view_obj = None
         else:
-            if name in {"pomodoro", "study", "theory", "enem_editais"}:
+            if name in {"pomodoro", "study", "theory", "enem_editais", "flashcards"}:
                 if name not in self._views:
                     self._views[name] = self._create_view(name)
                 view = self._views[name]
             else:
                 view = self._create_view(name)
+            self._active_view_obj = view
 
             if view is None:
                 self.page.update()
@@ -161,7 +181,9 @@ class SwitchFocusApp:
             content = view.build()
 
         self._content.bgcolor = t["bg"]
-        self._content.content = content
+        self._content_stage.content = content
+        self._content_stage.opacity = 1.0
+        self._content_stage.offset = ft.Offset(0, 0)
         self._nav_bar.bgcolor = t["sidebar"]
         self._nav_bar.indicator_color = with_alpha(t["primary"], "2E")
         self.page.bgcolor = t["bg"]
@@ -216,6 +238,7 @@ class SwitchFocusApp:
 
     def _build_more_menu(self):
         t = self.theme_mgr.get_theme()
+        self._more_reveal_blocks = []
 
         items = [
             (ft.Icons.MENU_BOOK_ROUNDED, "Teorias ENEM", "Conteudo teorico", "theory"),
@@ -238,35 +261,37 @@ class SwitchFocusApp:
         tiles = []
         for icon, label, subtitle, target in items:
             tiles.append(
-                soft_card(
-                    t,
-                    ft.ListTile(
-                        leading=ft.Container(
-                            width=42,
-                            height=42,
-                            border_radius=14,
-                            bgcolor=t.get("surface_soft", t["card"]),
-                            alignment=ft.Alignment.CENTER,
-                            content=ft.Icon(icon, color=t["primary"]),
+                self._more_reveal(
+                    soft_card(
+                        t,
+                        ft.ListTile(
+                            leading=ft.Container(
+                                width=42,
+                                height=42,
+                                border_radius=14,
+                                bgcolor=t.get("surface_soft", t["card"]),
+                                alignment=ft.Alignment.CENTER,
+                                content=ft.Icon(icon, color=t["primary"]),
+                            ),
+                            title=ft.Text(label, color=t["text"], size=15, weight=ft.FontWeight.W_600),
+                            subtitle=ft.Text(subtitle, color=t["text_sec"], size=11),
+                            trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=t["text_sec"]),
+                            on_click=lambda _, tgt=target: self._on_more_item(tgt),
                         ),
-                        title=ft.Text(label, color=t["text"], size=15, weight=ft.FontWeight.W_600),
-                        subtitle=ft.Text(subtitle, color=t["text_sec"], size=11),
-                        trailing=ft.Icon(ft.Icons.CHEVRON_RIGHT_ROUNDED, color=t["text_sec"]),
-                        on_click=lambda _, tgt=target: self._on_more_item(tgt),
+                        bgcolor=t["card"],
+                        radius=22,
+                        padding=8,
                     ),
-                    bgcolor=t["card"],
-                    radius=22,
-                    padding=8,
                 )
             )
 
-        return ft.Container(
+        content = ft.Container(
             bgcolor=t["bg"],
             padding=18,
             expand=True,
             content=ft.Column(
                 controls=[
-                    soft_card(
+                    self._more_reveal(soft_card(
                         t,
                         ft.Row(
                             [
@@ -297,14 +322,16 @@ class SwitchFocusApp:
                         padding=18,
                         bgcolor=t["card"],
                         radius=24,
-                    ),
-                    ft.Text("Mais recursos", size=18, weight=ft.FontWeight.BOLD, color=t["text"]),
+                    )),
+                    self._more_reveal(ft.Text("Mais recursos", size=18, weight=ft.FontWeight.BOLD, color=t["text"])),
                     *tiles,
                 ],
                 spacing=12,
                 scroll=ft.ScrollMode.AUTO,
             ),
         )
+        self.page.run_task(self._animate_more_reveal)
+        return content
 
     def _on_more_item(self, target):
         if target == "_logout":
@@ -358,6 +385,7 @@ class SwitchFocusApp:
         self._nav_bar.bgcolor = t["sidebar"]
         self._nav_bar.indicator_color = with_alpha(t["primary"], "2E")
         self._app_bar.bgcolor = t["sidebar"]
+        self._sync_motion_controls()
 
     def refresh_theme(self):
         self._apply_theme()
@@ -411,6 +439,107 @@ class SwitchFocusApp:
         self.page.overlay.append(dlg)
         dlg.open = True
         self.page.update()
+
+    def motion_ms(self, duration: int) -> int:
+        return 0 if self.reduce_motion else duration
+
+    def set_reduce_motion(self, enabled: bool):
+        enabled = bool(enabled)
+        if self.reduce_motion == enabled:
+            return
+        self.reduce_motion = enabled
+        self._save_motion_pref(enabled)
+        self._sync_motion_controls()
+        if self._current_view_name:
+            self.show_view(self._current_view_name)
+
+    def _sync_motion_controls(self):
+        if hasattr(self, "_content_stage") and self._content_stage:
+            self._content_stage.animate_opacity = self.motion_ms(180)
+            self._content_stage.animate_offset = self.motion_ms(180)
+
+    def _animate_transition_out(self):
+        if not self._current_view_name:
+            return
+        if self.reduce_motion:
+            return
+        if not getattr(self, "_content_stage", None):
+            return
+        self._content_stage.opacity = 0.0
+        self._content_stage.offset = ft.Offset(0.018, 0)
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    def _load_motion_pref(self) -> bool:
+        try:
+            return bool(self.page.client_storage.get(self.MOTION_PREF_KEY))
+        except Exception:
+            pass
+
+        # Compat: em algumas versoes existe page.session.get e em outras page.session.store.get.
+        try:
+            return bool(self.page.session.get(self.MOTION_PREF_KEY))
+        except Exception:
+            pass
+        try:
+            return bool(self.page.session.store.get(self.MOTION_PREF_KEY))
+        except Exception:
+            return False
+
+    def _save_motion_pref(self, enabled: bool):
+        try:
+            self.page.client_storage.set(self.MOTION_PREF_KEY, bool(enabled))
+            return
+        except Exception:
+            pass
+        try:
+            self.page.session.set(self.MOTION_PREF_KEY, bool(enabled))
+            return
+        except Exception:
+            pass
+        try:
+            self.page.session.store.set(self.MOTION_PREF_KEY, bool(enabled))
+        except Exception:
+            pass
+
+    def _on_keyboard_event(self, e: ft.KeyboardEvent):
+        view = self._active_view_obj
+        if view and hasattr(view, "handle_keyboard_event"):
+            try:
+                consumed = view.handle_keyboard_event(e)
+                if consumed:
+                    return
+            except Exception:
+                pass
+
+    def _more_reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.reduce_motion else ft.Offset(0, 0.032),
+            animate_opacity=self.motion_ms(220),
+            animate_offset=self.motion_ms(220),
+        )
+        self._more_reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_more_reveal(self):
+        if self.reduce_motion or self._revealing_more:
+            return
+        if self._current_view_name != "more":
+            return
+        self._revealing_more = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._more_reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.page.update()
+                await asyncio.sleep(0.04)
+        finally:
+            self._revealing_more = False
 
     def _auto_update_content(self):
         try:

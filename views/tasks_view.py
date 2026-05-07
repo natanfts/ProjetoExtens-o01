@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 
 import flet as ft
@@ -12,6 +13,12 @@ class TasksView:
         self.app = app
         self.db = app.db
         self._filter = "todas"
+        self._reveal_blocks: list[ft.Container] = []
+        self._task_row_blocks: list[ft.Container] = []
+        self._revealing = False
+        self._revealing_rows = False
+        self._task_shell_map: dict[int, ft.Container] = {}
+        self._animating_task_rows: set[int] = set()
 
     def on_show(self):
         pass
@@ -19,6 +26,8 @@ class TasksView:
     def build(self):
         t = self.app.theme_mgr.get_theme()
         self._theme = t
+        self._reveal_blocks = []
+        self._task_row_blocks = []
 
         filter_dd = ft.Dropdown(
             value="Todas",
@@ -42,23 +51,29 @@ class TasksView:
         self._task_list = ft.Column(spacing=8, scroll=ft.ScrollMode.AUTO, expand=True)
         self._load_tasks()
 
-        return ft.Container(
+        content = ft.Container(
             expand=True,
             bgcolor=t["bg"],
             padding=ft.padding.symmetric(horizontal=18, vertical=12),
             content=ft.Column(
                 [
-                    ft.Row([filter_dd, add_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    self._task_list,
+                    self._reveal(ft.Row([filter_dd, add_btn], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)),
+                    self._reveal(self._task_list),
                 ],
                 expand=True,
                 spacing=12,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        self.app.page.run_task(self._animate_task_rows)
+        return content
 
     def _load_tasks(self):
         t = self._theme
         self._task_list.controls.clear()
+        self._task_row_blocks = []
+        self._task_shell_map = {}
+        self._animating_task_rows.clear()
 
         status = None
         if self._filter == "pendentes":
@@ -75,28 +90,33 @@ class TasksView:
 
         if not tasks:
             self._task_list.controls.append(
-                soft_card(
-                    t,
-                    ft.Container(
-                        alignment=ft.Alignment.CENTER,
-                        padding=24,
-                        content=ft.Text(
-                            "Nenhuma tarefa encontrada. Clique em 'Nova tarefa' para comecar.",
-                            size=14,
-                            color=t["text_sec"],
-                            text_align=ft.TextAlign.CENTER,
+                self._task_row_reveal(
+                    soft_card(
+                        t,
+                        ft.Container(
+                            alignment=ft.Alignment.CENTER,
+                            padding=24,
+                            content=ft.Text(
+                                "Nenhuma tarefa encontrada. Clique em 'Nova tarefa' para comecar.",
+                                size=14,
+                                color=t["text_sec"],
+                                text_align=ft.TextAlign.CENTER,
+                            ),
                         ),
+                        bgcolor=t["card"],
+                        radius=20,
                     ),
-                    bgcolor=t["card"],
-                    radius=20,
                 )
             )
+            self.app.page.run_task(self._animate_task_rows)
             return
 
         for task in tasks:
-            self._task_list.controls.append(self._render_task(task, t))
+            self._task_list.controls.append(self._task_row_reveal(self._render_task(task, t)))
+        self.app.page.run_task(self._animate_task_rows)
 
     def _render_task(self, task, t):
+        task_id = int(task["id"])
         done = task["status"] == "concluída"
         prio = {"alta": "A", "média": "M", "baixa": "B"}.get(task.get("priority"), "-")
 
@@ -121,7 +141,7 @@ class TasksView:
         desc = (task.get("description") or "").strip()
         sub_text = f"{desc}  {pom_text}{deadline_text}".strip()
 
-        return soft_card(
+        row = soft_card(
             t,
             ft.Row(
                 [
@@ -129,7 +149,11 @@ class TasksView:
                         icon=ft.Icons.CHECK_CIRCLE_ROUNDED if done else ft.Icons.RADIO_BUTTON_UNCHECKED_ROUNDED,
                         icon_color=t["success"] if done else t["text_sec"],
                         icon_size=26,
-                        on_click=lambda _, tid=task["id"], d=done: self._toggle_complete(tid, d),
+                        on_click=lambda _, tid=task_id, d=done: self._run_task_row_action(
+                            tid,
+                            lambda tid=tid, d=d: self._toggle_complete(tid, d),
+                            1 if not d else -1,
+                        ),
                     ),
                     ft.Column(
                         [
@@ -149,13 +173,21 @@ class TasksView:
                         icon=ft.Icons.EDIT_ROUNDED,
                         icon_color=t["primary"],
                         icon_size=20,
-                        on_click=lambda _, tk=task: self._open_edit_dialog(tk),
+                        on_click=lambda _, tid=task_id, tk=task: self._run_task_row_action(
+                            tid,
+                            lambda tk=tk: self._open_edit_dialog(tk),
+                            -1,
+                        ),
                     ),
                     ft.IconButton(
                         icon=ft.Icons.DELETE_OUTLINE_ROUNDED,
                         icon_color=t["danger"],
                         icon_size=20,
-                        on_click=lambda _, tid=task["id"]: self._delete(tid),
+                        on_click=lambda _, tid=task_id: self._run_task_row_action(
+                            tid,
+                            lambda tid=tid: self._delete(tid),
+                            1,
+                        ),
                     ),
                 ],
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -164,6 +196,57 @@ class TasksView:
             radius=18,
             padding=ft.padding.symmetric(horizontal=12, vertical=8),
         )
+        return self._task_interaction_shell(task_id, row)
+
+    def _task_interaction_shell(self, task_id: int, control):
+        shell = ft.Container(
+            content=control,
+            scale=1.0,
+            opacity=1.0,
+            offset=ft.Offset(0, 0),
+            animate_scale=self.app.motion_ms(130),
+            animate_offset=self.app.motion_ms(130),
+            animate_opacity=self.app.motion_ms(130),
+            on_hover=self._task_hover,
+        )
+        self._task_shell_map[task_id] = shell
+        return shell
+
+    def _task_hover(self, e):
+        if self.app.reduce_motion:
+            return
+        entering = str(getattr(e, "data", "")).lower() == "true"
+        e.control.scale = 1.01 if entering else 1.0
+        e.control.update()
+
+    def _run_task_row_action(self, task_id: int, action, motion: int = 0):
+        self.app.page.run_task(self._animate_task_row_action, task_id, action, motion)
+
+    async def _animate_task_row_action(self, task_id: int, action, motion: int = 0):
+        row_shell = self._task_shell_map.get(task_id)
+        if self.app.reduce_motion or row_shell is None:
+            action()
+            return
+        if task_id in self._animating_task_rows:
+            return
+
+        self._animating_task_rows.add(task_id)
+        try:
+            row_shell.scale = 0.986
+            row_shell.opacity = 0.92
+            row_shell.offset = ft.Offset(0.012 * motion, 0)
+            self.app.page.update()
+            await asyncio.sleep(0.055)
+
+            row_shell.scale = 1.0
+            row_shell.opacity = 1.0
+            row_shell.offset = ft.Offset(0, 0)
+            self.app.page.update()
+            await asyncio.sleep(0.02)
+
+            action()
+        finally:
+            self._animating_task_rows.discard(task_id)
 
     def _toggle_complete(self, task_id, currently_done):
         if currently_done:
@@ -195,6 +278,60 @@ class TasksView:
         self._filter = e.control.value.lower()
         self._load_tasks()
         self.app.page.update()
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.035),
+            animate_opacity=self.app.motion_ms(220),
+            animate_offset=self.app.motion_ms(220),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    def _task_row_reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.03),
+            animate_opacity=self.app.motion_ms(190),
+            animate_offset=self.app.motion_ms(190),
+        )
+        self._task_row_blocks.append(shell)
+        return shell
+
+    async def _animate_reveal(self):
+        if self.app.reduce_motion or self._revealing:
+            return
+        if self.app._current_view_name != "tasks":
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.045)
+        finally:
+            self._revealing = False
+
+    async def _animate_task_rows(self):
+        if self.app.reduce_motion or self._revealing_rows:
+            return
+        if self.app._current_view_name != "tasks":
+            return
+        self._revealing_rows = True
+        try:
+            await asyncio.sleep(0)
+            for row in self._task_row_blocks:
+                row.opacity = 1.0
+                row.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.035)
+        finally:
+            self._revealing_rows = False
 
     def _open_add_dialog(self):
         self._task_dialog("Adicionar tarefa")

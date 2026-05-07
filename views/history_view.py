@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import os
 from datetime import datetime
@@ -13,6 +14,8 @@ class HistoryView:
     def __init__(self, app):
         self.app = app
         self.db = app.db
+        self._reveal_blocks: list[ft.Container] = []
+        self._revealing = False
 
     def on_show(self):
         pass
@@ -20,9 +23,10 @@ class HistoryView:
     def build(self):
         t = self.app.theme_mgr.get_theme()
         uid = self.app.get_user_id()
+        self._reveal_blocks = []
 
         if not uid:
-            return ft.Container(
+            content = ft.Container(
                 expand=True,
                 bgcolor=t["bg"],
                 alignment=ft.Alignment.CENTER,
@@ -43,6 +47,8 @@ class HistoryView:
                     width=360,
                 ),
             )
+            self.app.page.run_task(self._animate_reveal)
+            return content
 
         stats = self.db.get_session_stats(uid)
         xp_info = self.db.get_xp_info(uid)
@@ -153,24 +159,28 @@ class HistoryView:
             height=40,
         )
 
-        return ft.Container(
+        controls = [
+            ft.ResponsiveRow(stat_cards, spacing=8, run_spacing=8),
+            ft.Text("Desempenho por materia", size=18, weight=ft.FontWeight.BOLD, color=t["primary"]),
+            *(study_rows if study_rows else [ft.Text("Nenhum quiz realizado ainda", size=14, color=t["text_sec"])]),
+            ft.Text("Sessoes recentes", size=18, weight=ft.FontWeight.BOLD, color=t["primary"]),
+            *(session_tiles if session_tiles else [ft.Text("Nenhuma sessao registrada", size=14, color=t["text_sec"])]),
+            ft.Container(height=6),
+            export_btn,
+        ]
+
+        content = ft.Container(
             expand=True,
             bgcolor=t["bg"],
             padding=ft.padding.symmetric(horizontal=18, vertical=12),
             content=ft.Column(
-                [
-                    ft.ResponsiveRow(stat_cards, spacing=8, run_spacing=8),
-                    ft.Text("Desempenho por materia", size=18, weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    *(study_rows if study_rows else [ft.Text("Nenhum quiz realizado ainda", size=14, color=t["text_sec"])]),
-                    ft.Text("Sessoes recentes", size=18, weight=ft.FontWeight.BOLD, color=t["primary"]),
-                    *(session_tiles if session_tiles else [ft.Text("Nenhuma sessao registrada", size=14, color=t["text_sec"])]),
-                    ft.Container(height=6),
-                    export_btn,
-                ],
+                [self._reveal(c) for c in controls],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        return content
 
     def _export_csv(self, uid):
         try:
@@ -191,3 +201,30 @@ class HistoryView:
             self.app.show_snackbar(f"Exportado: {path}")
         except Exception as e:
             self.app.show_snackbar(f"Erro ao exportar: {e}", bgcolor="#C45144")
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.032),
+            animate_opacity=self.app.motion_ms(220),
+            animate_offset=self.app.motion_ms(220),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_reveal(self):
+        if self.app.reduce_motion or self._revealing:
+            return
+        if self.app._current_view_name != "history":
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.04)
+        finally:
+            self._revealing = False

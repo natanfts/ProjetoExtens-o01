@@ -1,9 +1,9 @@
+import asyncio
 from datetime import datetime, timedelta
 
 import flet as ft
 
 from views.ui_components import (
-    metric_card,
     primary_button,
     progress_track,
     section_title,
@@ -20,6 +20,11 @@ class DashboardView:
     def __init__(self, app):
         self.app = app
         self.db = app.db
+        self._metric_values: list[tuple[ft.Text, int]] = []
+        self._metric_cards: list[ft.Container] = []
+        self._reveal_blocks: list[ft.Container] = []
+        self._animating_metrics = False
+        self._animating_reveal = False
 
     def on_show(self):
         pass
@@ -27,9 +32,14 @@ class DashboardView:
     def build(self):
         t = self.app.theme_mgr.get_theme()
         uid = self.app.get_user_id()
+        self._metric_values = []
+        self._metric_cards = []
+        self._reveal_blocks = []
 
         if not uid:
-            return self._build_guest_mode(t)
+            guest = self._build_guest_mode(t)
+            self.app.page.run_task(self._animate_dashboard_reveal)
+            return guest
 
         self.db.update_streak(uid)
 
@@ -45,10 +55,10 @@ class DashboardView:
 
         content = ft.Column(
             controls=[
-                self._build_main_hero(t, greeting, name, xp_info, streak_info, today_stats),
-                section_title(t, "Visao rapida", "Tudo que importa para decidir sua proxima acao."),
-                self._build_metrics(t, today_stats, streak_info),
-                section_title(
+                self._reveal(self._build_main_hero(t, greeting, name, xp_info, streak_info, today_stats)),
+                self._reveal(section_title(t, "Visao rapida", "Tudo que importa para decidir sua proxima acao.")),
+                self._reveal(self._build_metrics(t, today_stats, streak_info)),
+                self._reveal(section_title(
                     t,
                     "Metas de hoje",
                     "Progresso visual com leitura imediata.",
@@ -58,17 +68,20 @@ class DashboardView:
                         on_click=lambda _: self.app.show_view("tasks"),
                         style=ft.ButtonStyle(color=t["primary"]),
                     ),
-                ),
-                self._build_goals(t, goals_summary, today_stats),
-                section_title(t, "Ritmo semanal", "Consistencia dos ultimos 7 dias."),
-                self._build_week_activity(t, sessions),
-                section_title(t, "Atalhos", "Acoes rapidas para manter fluxo."),
-                self._build_actions(t),
+                )),
+                self._reveal(self._build_goals(t, goals_summary, today_stats)),
+                self._reveal(section_title(t, "Ritmo semanal", "Consistencia dos ultimos 7 dias.")),
+                self._reveal(self._build_week_activity(t, sessions)),
+                self._reveal(section_title(t, "Atalhos", "Acoes rapidas para manter fluxo.")),
+                self._reveal(self._build_actions(t)),
                 ft.Container(height=8),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
         )
+
+        self.app.page.run_task(self._animate_dashboard_reveal)
+        self.app.page.run_task(self._animate_metrics)
 
         return ft.Container(
             expand=True,
@@ -181,12 +194,43 @@ class DashboardView:
         )
 
     def _build_metrics(self, t, today_stats, streak_info):
-        cards = [
-            metric_card(t, "P", "Pomodoros", str(today_stats["pomodoros"]), "Sessoes completas"),
-            metric_card(t, "F", "Minutos focados", str(today_stats["focus_min"]), "Tempo profundo"),
-            metric_card(t, "Q", "Questoes", str(today_stats["questions"]), "Treino ativo"),
-            metric_card(t, "S", "Melhor streak", str(streak_info["longest"]), "Constancia"),
+        specs = [
+            ("P", "Pomodoros", int(today_stats["pomodoros"]), "Sessoes completas"),
+            ("F", "Minutos focados", int(today_stats["focus_min"]), "Tempo profundo"),
+            ("Q", "Questoes", int(today_stats["questions"]), "Treino ativo"),
+            ("S", "Melhor streak", int(streak_info["longest"]), "Constancia"),
         ]
+        cards = []
+        for icon_txt, label, target, helper in specs:
+            value_text = ft.Text("0", size=24, weight=ft.FontWeight.BOLD, color=t["text"])
+            card = soft_card(
+                t,
+                ft.Column(
+                    [
+                        ft.Text(icon_txt, size=22),
+                        value_text,
+                        ft.Text(label, size=12, weight=ft.FontWeight.W_600, color=t["text_sec"]),
+                        ft.Text(helper, size=10, color=t["text_sec"]),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                padding=18,
+                radius=20,
+                expand=True,
+                bgcolor=t["card"],
+            )
+            shell = ft.Container(
+                content=card,
+                opacity=1.0 if self.app.reduce_motion else 0.0,
+                offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.05),
+                animate_opacity=self.app.motion_ms(240),
+                animate_offset=self.app.motion_ms(240),
+            )
+            cards.append(shell)
+            self._metric_values.append((value_text, target))
+            self._metric_cards.append(shell)
+
         return ft.ResponsiveRow(
             controls=[ft.Container(content=card, col={"xs": 6, "sm": 6, "md": 3}) for card in cards],
             spacing=10,
@@ -539,13 +583,59 @@ class DashboardView:
             padding=ft.padding.only(left=18, top=14, right=18, bottom=20),
             content=ft.Column(
                 [
-                    hero,
-                    section_title(t, "Recursos disponiveis", "Ferramentas que voce pode usar agora."),
-                    ft.ResponsiveRow(unlocked_cards, spacing=10, run_spacing=10),
-                    section_title(t, "Desbloquear com conta", "Vantagens para manter consistencia."),
-                    ft.ResponsiveRow(locked_cards, spacing=10, run_spacing=10),
+                    self._reveal(hero),
+                    self._reveal(section_title(t, "Recursos disponiveis", "Ferramentas que voce pode usar agora.")),
+                    self._reveal(ft.ResponsiveRow(unlocked_cards, spacing=10, run_spacing=10)),
+                    self._reveal(section_title(t, "Desbloquear com conta", "Vantagens para manter consistencia.")),
+                    self._reveal(ft.ResponsiveRow(locked_cards, spacing=10, run_spacing=10)),
                 ],
                 spacing=16,
                 scroll=ft.ScrollMode.AUTO,
             ),
         )
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.035),
+            animate_opacity=self.app.motion_ms(260),
+            animate_offset=self.app.motion_ms(260),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_dashboard_reveal(self):
+        if self.app.reduce_motion or self._animating_reveal:
+            return
+        self._animating_reveal = True
+        try:
+            for shell in self._reveal_blocks:
+                shell.opacity = 1.0
+                shell.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.045)
+        finally:
+            self._animating_reveal = False
+
+    async def _animate_metrics(self):
+        if self.app.reduce_motion or self._animating_metrics:
+            return
+        self._animating_metrics = True
+        try:
+            for shell in self._metric_cards:
+                shell.opacity = 1.0
+                shell.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.045)
+
+            max_target = max((target for _, target in self._metric_values), default=1)
+            steps = 12
+            for step in range(1, steps + 1):
+                ratio = step / steps
+                for label, target in self._metric_values:
+                    label.value = str(int(round(target * ratio)))
+                self.app.page.update()
+                await asyncio.sleep(0.03 if max_target < 300 else 0.02)
+        finally:
+            self._animating_metrics = False

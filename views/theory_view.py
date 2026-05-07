@@ -78,6 +78,8 @@ class TheoryView:
         self.app = app
         self.db = app.db
         self._mode = "areas"  # areas | topics | detail | search | articles | reading
+        self._reveal_blocks = []
+        self._revealing = False
         self._current_area = None
         self._current_topic = None
         self._search_query = ""
@@ -92,17 +94,20 @@ class TheoryView:
         pass  # Preservar estado da navegação
 
     def build(self):
+        content = None
         if self._mode == "topics":
-            return self._build_topics()
+            content = self._build_topics()
         elif self._mode == "detail":
-            return self._build_detail()
+            content = self._build_detail()
         elif self._mode == "search":
-            return self._build_search_results()
+            content = self._build_search_results()
         elif self._mode == "articles":
-            return self._build_article_results()
+            content = self._build_article_results()
         elif self._mode == "reading":
-            return self._build_reading()
-        return self._build_areas()
+            content = self._build_reading()
+        else:
+            content = self._build_areas()
+        return self._apply_cascade_reveal(content)
 
     # ══════════════════════════════════════════════════════════
     # ── TELA: ÁREAS DE CONHECIMENTO ──────────────────────────
@@ -915,6 +920,48 @@ class TheoryView:
     # ══════════════════════════════════════════════════════════
     # ── NAVEGAÇÃO INTERNA ────────────────────────────────────
     # ══════════════════════════════════════════════════════════
+    def _apply_cascade_reveal(self, content):
+        if self.app.reduce_motion:
+            return content
+        if self.app._current_view_name != "theory":
+            return content
+        root = getattr(content, "content", None)
+        if not isinstance(root, ft.Column):
+            return content
+        if not root.controls:
+            return content
+
+        self._reveal_blocks = []
+        wrapped = []
+        for ctrl in root.controls:
+            shell = ft.Container(
+                content=ctrl,
+                opacity=0.0,
+                offset=ft.Offset(0, 0.032),
+                animate_opacity=self.app.motion_ms(220),
+                animate_offset=self.app.motion_ms(220),
+            )
+            wrapped.append(shell)
+            self._reveal_blocks.append(shell)
+
+        root.controls = wrapped
+        self.app.page.run_task(self._animate_reveal)
+        return content
+
+    async def _animate_reveal(self):
+        if self._revealing:
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.038)
+        finally:
+            self._revealing = False
+
     def _open_area(self, area_name):
         self._current_area = area_name
         self._mode = "topics"
