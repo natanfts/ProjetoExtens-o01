@@ -88,6 +88,15 @@ def _press_overlay(theme: dict):
     }
 
 
+def _hover_lift(e):
+    try:
+        hovering = str(getattr(e, "data", "")).lower() == "true"
+        e.control.scale = 1.02 if hovering else 1.0
+        e.control.update()
+    except Exception:
+        pass
+
+
 def primary_button(
     theme: dict,
     label: str,
@@ -107,6 +116,9 @@ def primary_button(
         height=height,
         bgcolor=theme["button"],
         color="#FFFFFF",
+        scale=1.0,
+        animate_scale=120,
+        on_hover=_hover_lift,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=16),
             padding=ft.padding.symmetric(horizontal=18, vertical=14),
@@ -138,6 +150,9 @@ def secondary_button(
         expand=expand,
         width=width,
         height=height,
+        scale=1.0,
+        animate_scale=120,
+        on_hover=_hover_lift,
         style=ft.ButtonStyle(
             color=theme["text"],
             side=ft.BorderSide(1, theme.get("border_strong", "#D9C4A6")),
@@ -176,6 +191,9 @@ def filled_button(
         height=height,
         bgcolor=base,
         color=color,
+        scale=1.0,
+        animate_scale=120,
+        on_hover=_hover_lift,
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=14),
             padding=ft.padding.symmetric(horizontal=14, vertical=10),

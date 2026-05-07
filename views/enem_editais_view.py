@@ -1,3 +1,4 @@
+import asyncio
 import flet as ft
 from enem_editais import ENEM_EDITIONS, ENEM_STATS
 
@@ -11,6 +12,8 @@ class EnemEditaisView:
         self._selected_edition = None
         self._filter = "all"       # all | antigo | novo
         self._search_query = ""
+        self._reveal_blocks: list[ft.Container] = []
+        self._revealing = False
 
     def on_show(self):
         pass
@@ -25,6 +28,7 @@ class EnemEditaisView:
     # ══════════════════════════════════════════════════════════
     def _build_list(self):
         t = self.app.theme_mgr.get_theme()
+        self._reveal_blocks = []
 
         # Filtrar edições
         editions = list(ENEM_EDITIONS)
@@ -186,24 +190,28 @@ class EnemEditaisView:
                 )
             )
 
-        return ft.Container(
+        controls = [
+            stats_card,
+            filter_row,
+            search_field,
+            ft.Text(
+                f"📝 {len(editions)} edição(ões)",
+                size=14, color=t["text_sec"],
+            ),
+            *edition_cards,
+            ft.Container(height=20),
+        ]
+
+        content = ft.Container(
             expand=True, bgcolor=t["bg"],
             padding=ft.padding.symmetric(horizontal=20, vertical=10),
             content=ft.Column(
-                controls=[
-                    stats_card,
-                    filter_row,
-                    search_field,
-                    ft.Text(
-                        f"📝 {len(editions)} edição(ões)",
-                        size=14, color=t["text_sec"],
-                    ),
-                    *edition_cards,
-                    ft.Container(height=20),
-                ],
+                controls=[self._reveal(c) for c in controls],
                 spacing=10, scroll=ft.ScrollMode.AUTO,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        return content
 
     # ══════════════════════════════════════════════════════════
     # ── TELA: DETALHE DE UMA EDIÇÃO ──────────────────────────
@@ -212,6 +220,7 @@ class EnemEditaisView:
         t = self.app.theme_mgr.get_theme()
         ed = self._selected_edition
         is_new_enem = ed["year"] >= 2009
+        self._reveal_blocks = []
 
         sections = []
 
@@ -370,16 +379,18 @@ class EnemEditaisView:
             )
         )
 
-        return ft.Container(
+        content = ft.Container(
             expand=True, bgcolor=t["bg"],
             padding=ft.padding.symmetric(horizontal=20, vertical=10),
             content=ft.Column(
-                controls=sections,
+                controls=[self._reveal(c) for c in sections],
                 spacing=10,
                 scroll=ft.ScrollMode.AUTO,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        return content
 
     # ══════════════════════════════════════════════════════════
     # ── HELPERS UI ───────────────────────────────────────────
@@ -430,3 +441,30 @@ class EnemEditaisView:
             theory._search_articles_api(search_term)
         else:
             self.app.show_view("theory")
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.032),
+            animate_opacity=self.app.motion_ms(220),
+            animate_offset=self.app.motion_ms(220),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_reveal(self):
+        if self.app.reduce_motion or self._revealing:
+            return
+        if self.app._current_view_name != "enem_editais":
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.038)
+        finally:
+            self._revealing = False

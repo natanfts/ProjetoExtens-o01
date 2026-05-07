@@ -1,3 +1,5 @@
+import asyncio
+
 import flet as ft
 
 from views.ui_components import filled_button, secondary_button, soft_card
@@ -10,6 +12,8 @@ class ShortsView:
         self.app = app
         self.db = app.db
         self._category = "enem"
+        self._reveal_blocks: list[ft.Container] = []
+        self._revealing = False
 
     def on_show(self):
         pass
@@ -26,6 +30,7 @@ class ShortsView:
 
     def build(self):
         t = self.app.theme_mgr.get_theme()
+        self._reveal_blocks = []
 
         subjects = self.db.get_subjects(self._category, "video")
         subject_sections = []
@@ -103,19 +108,18 @@ class ShortsView:
                 )
             )
 
-        return ft.Container(
+        content = ft.Container(
             expand=True,
             bgcolor=t["bg"],
             padding=ft.padding.symmetric(horizontal=18, vertical=12),
             content=ft.Column(
-                [
-                    self._category_switch(t),
-                    *subject_sections,
-                ],
+                [self._reveal(c) for c in [self._category_switch(t), *subject_sections]],
                 spacing=12,
                 scroll=ft.ScrollMode.AUTO,
             ),
         )
+        self.app.page.run_task(self._animate_reveal)
+        return content
 
     def _set_category(self, cat):
         self._category = cat
@@ -126,3 +130,30 @@ class ShortsView:
             import webbrowser
 
             webbrowser.open(url)
+
+    def _reveal(self, control):
+        shell = ft.Container(
+            content=control,
+            opacity=1.0 if self.app.reduce_motion else 0.0,
+            offset=ft.Offset(0, 0) if self.app.reduce_motion else ft.Offset(0, 0.032),
+            animate_opacity=self.app.motion_ms(220),
+            animate_offset=self.app.motion_ms(220),
+        )
+        self._reveal_blocks.append(shell)
+        return shell
+
+    async def _animate_reveal(self):
+        if self.app.reduce_motion or self._revealing:
+            return
+        if self.app._current_view_name != "shorts":
+            return
+        self._revealing = True
+        try:
+            await asyncio.sleep(0)
+            for block in self._reveal_blocks:
+                block.opacity = 1.0
+                block.offset = ft.Offset(0, 0)
+                self.app.page.update()
+                await asyncio.sleep(0.04)
+        finally:
+            self._revealing = False
